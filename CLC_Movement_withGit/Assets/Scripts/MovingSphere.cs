@@ -17,6 +17,8 @@ public class MovingSphere : MonoBehaviour
         Vector2 playerInput;
         playerInput.x = Input.GetAxis("Horizontal");
         playerInput.y = Input.GetAxis("Vertical");
+        // playerInput.Normalize();
+        playerInput = Vector2.ClampMagnitude(playerInput, 1f);
         transform.localPosition = new Vector3(playerInput.x, .5f, playerInput.y);
     }
 }
