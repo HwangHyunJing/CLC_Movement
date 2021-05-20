@@ -10,6 +10,9 @@ public class MovingSphere : MonoBehaviour
     [SerializeField, Range(0f, 100f)]
     float maxAcceleration = 10f;
 
+    [SerializeField, Range(0f, 1f)]
+    float bounciness = 0.5f;
+
     // ground의 이동 바운더리 설정
     [SerializeField]
     Rect allowedArea = new Rect(-5f, -5f, 10f, 10f);
@@ -59,23 +62,23 @@ public class MovingSphere : MonoBehaviour
             if(newPosition.x < allowedArea.xMin)
             {
                 newPosition.x = allowedArea.xMin;
-                velocity.x = 0f;
+                velocity.x = -velocity.x * bounciness;
             }
             else if(newPosition.x > allowedArea.xMax)
             {
                 newPosition.x = allowedArea.xMax;
-                velocity.x = 0f;
+                velocity.x = -velocity.x * bounciness;
             }
 
             if(newPosition.z < allowedArea.yMin)
             {
                 newPosition.z = allowedArea.yMin;
-                velocity.z = 0f;
+                velocity.z = -velocity.z * bounciness;
             }
             else if(newPosition.z > allowedArea.yMax)
             {
                 newPosition.z = allowedArea.yMax;
-                velocity.z = 0f;
+                velocity.z = -velocity.z * bounciness; ;
             }
         }
 
