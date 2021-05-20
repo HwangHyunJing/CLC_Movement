@@ -8,7 +8,7 @@ public class MovingSphere : MonoBehaviour
     float maxSpeed = 10f;
 
     [SerializeField, Range(0f, 100f)]
-    float maxAcceleration = 10f;
+    float maxAcceleration = 10f, maxAirAcceleration = 1f;
 
     [SerializeField, Range(0f, 10f)]
     float jumpHeight = 2f;
@@ -61,11 +61,11 @@ public class MovingSphere : MonoBehaviour
 
     // 값에 대한 계산들을 처리, 판단
     private void FixedUpdate()
-    {
-        
+    {        
         UpdateState();
 
-        float maxSpeedChange = maxAcceleration * Time.deltaTime;
+        float acceleration = onGround ? maxAcceleration : maxAirAcceleration;
+        float maxSpeedChange = acceleration * Time.deltaTime;
 
         velocity.x = Mathf.MoveTowards(velocity.x, desiredVelocity.x, maxSpeedChange);
         velocity.z = Mathf.MoveTowards(velocity.z, desiredVelocity.z, maxSpeedChange);
@@ -112,7 +112,13 @@ public class MovingSphere : MonoBehaviour
         if(onGround || jumpPhase < maxAirJumps)
         {
             jumpPhase += 1;
-            velocity.y += Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
+            float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
+            if(jumpSpeed > 0f)
+            {
+                // 점프 속도가 기존의 속도를 초과하지 못하도록 함
+                jumpSpeed = Mathf.Max(jumpSpeed - velocity.y, 0f);
+            }
+            velocity.y += jumpSpeed;
         }
         
     }
