@@ -34,6 +34,9 @@ public class MovingSphere : MonoBehaviour
     // 땅으로 판정해주는 최소 값: 별도로 정의해줘야 한다
     float minGroundDotProduct;
 
+    // 접촉면의 지면 각도를 판별
+    Vector3 contactNormal;
+
     Rigidbody body;
 
     private void Awake()
@@ -76,12 +79,15 @@ public class MovingSphere : MonoBehaviour
     private void FixedUpdate()
     {        
         UpdateState();
+        AdjustVelocity();
 
+        /*
         float acceleration = onGround ? maxAcceleration : maxAirAcceleration;
         float maxSpeedChange = acceleration * Time.deltaTime;
 
         velocity.x = Mathf.MoveTowards(velocity.x, desiredVelocity.x, maxSpeedChange);
         velocity.z = Mathf.MoveTowards(velocity.z, desiredVelocity.z, maxSpeedChange);
+        */
 
         /*
         Vector3 displacement = velocity * Time.deltaTime;
@@ -126,12 +132,20 @@ public class MovingSphere : MonoBehaviour
         {
             jumpPhase += 1;
             float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
-            if(jumpSpeed > 0f)
+
+            // contact normal 방향에 맞게 alignedSpeed (점프 속도) 설정
+            float alignedSpeed = Vector3.Dot(velocity, contactNormal);
+
+            // jumpSpeed 대신 slignedSpeed를 사용
+            if(alignedSpeed > 0f)
             {
                 // 점프 속도가 기존의 속도를 초과하지 못하도록 함
-                jumpSpeed = Mathf.Max(jumpSpeed - velocity.y, 0f);
+                // velocity.y 대신에 alignedSpeed를 사용
+                jumpSpeed = Mathf.Max(jumpSpeed - alignedSpeed, 0f);
             }
-            velocity.y += jumpSpeed;
+
+            // 지면으로 판별되는 곳의 윗 벡터 * 점프 속력
+            velocity += contactNormal * jumpSpeed;
         }
         
     }
@@ -154,7 +168,39 @@ public class MovingSphere : MonoBehaviour
         for(int i=0; i<collision.contactCount; i++)
         {
             Vector3 normal = collision.GetContact(i).normal;
-            onGround |= normal.y >= minGroundDotProduct;
+            // onGround |= normal.y >= minGroundDotProduct;
+            if(normal.y >= minGroundDotProduct)
+            {
+                onGround = true;
+                contactNormal = normal;
+            }
+            else
+            {
+                contactNormal = Vector3.up;
+            }
         }
+    }
+
+    Vector3 ProjectOnContactPlane (Vector3 vector)
+    {
+        return vector - contactNormal * Vector3.Dot(vector, contactNormal);
+    }
+
+    // contact Plane에 따라 점프 속도를 조정해주는 메소드
+    void AdjustVelocity()
+    {
+        Vector3 xAxis = ProjectOnContactPlane(Vector3.right).normalized;
+        Vector3 zAxis = ProjectOnContactPlane(Vector3.forward).normalized;
+
+        float currentX = Vector3.Dot(velocity, xAxis);
+        float currentZ = Vector3.Dot(velocity, zAxis);
+
+        float acceleration = onGround ? maxAcceleration : maxAirAcceleration;
+        float maxSpeedChange = acceleration * Time.deltaTime;
+
+        float newX = Mathf.MoveTowards(currentX, desiredVelocity.x, maxSpeedChange);
+        float newZ = Mathf.MoveTowards(currentZ, desiredVelocity.z, maxSpeedChange);
+
+        velocity += xAxis * (newX - currentX) + zAxis * (newZ - currentZ);
     }
 }
