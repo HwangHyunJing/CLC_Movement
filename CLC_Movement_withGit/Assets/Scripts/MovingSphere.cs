@@ -49,7 +49,9 @@ public class MovingSphere : MonoBehaviour
         // 오버로딩 형을 맞추기 위해, 인자는 Vector2로
         if(!allowedArea.Contains(new Vector2(newPosition.x, newPosition.z)))
         {
-            newPosition = transform.localPosition;
+            // newPosition = transform.localPosition;
+            newPosition.x = Mathf.Clamp(newPosition.x, allowedArea.xMin, allowedArea.xMax);
+            newPosition.z = Mathf.Clamp(newPosition.z, allowedArea.yMin, allowedArea.yMax);
         }
 
         transform.localPosition = newPosition;
