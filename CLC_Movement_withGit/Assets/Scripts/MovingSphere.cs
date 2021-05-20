@@ -16,6 +16,9 @@ public class MovingSphere : MonoBehaviour
     [SerializeField, Range(0, 5)]
     int maxAirJumps = 0;
 
+    [SerializeField, Range(0f, 90f)]
+    float maxGroundAngle = 25f;
+
     // desired 속도도 전역으로 처리
     Vector3 velocity, desiredVelocity;
 
@@ -28,11 +31,21 @@ public class MovingSphere : MonoBehaviour
     // 공중에서 점프를 몇 번 했는가 체크
     int jumpPhase;
 
+    // 땅으로 판정해주는 최소 값: 별도로 정의해줘야 한다
+    float minGroundDotProduct;
+
     Rigidbody body;
 
     private void Awake()
     {
         body = GetComponent<Rigidbody>();
+        OnValidate();
+    }
+
+    private void OnValidate()
+    {
+        // 땅으로 판단하는 최소 각도를 정해준다
+        minGroundDotProduct = Mathf.Cos(maxGroundAngle) * Mathf.Deg2Rad;
     }
 
     // Start is called before the first frame update
@@ -141,7 +154,7 @@ public class MovingSphere : MonoBehaviour
         for(int i=0; i<collision.contactCount; i++)
         {
             Vector3 normal = collision.GetContact(i).normal;
-            onGround |= normal.y >= 0.9f;
+            onGround |= normal.y >= minGroundDotProduct;
         }
     }
 }
