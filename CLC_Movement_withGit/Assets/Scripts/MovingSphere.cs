@@ -26,6 +26,9 @@ public class MovingSphere : MonoBehaviour
     [SerializeField, Range(0f, 90f)]
     float maxGroundAngle = 25f;
 
+    [SerializeField]
+    LayerMask probeMask = -1;
+
     // desired 속도도 전역으로 처리
     Vector3 velocity, desiredVelocity;
 
@@ -48,6 +51,8 @@ public class MovingSphere : MonoBehaviour
 
     // 마지막으로 땅에 닿은 후 지난 physics step
     int stepsSinceLastGrounded;
+    // 점프의 횟수가 아니라, 마지막 점프 후 지난 physics step
+    int stepsSinceLastJump;
 
     Rigidbody body;
 
@@ -117,6 +122,7 @@ public class MovingSphere : MonoBehaviour
     void UpdateState()
     {
         stepsSinceLastGrounded += 1;
+        stepsSinceLastJump += 1;
 
         // 앞에 저장했던 속도를 그대로 사용해서 판단
         velocity = body.velocity;
@@ -152,6 +158,9 @@ public class MovingSphere : MonoBehaviour
     {
         if(OnGround || jumpPhase < maxAirJumps)
         {
+            // 점프가 막 실행되었으므로 해당 값 초기화
+            stepsSinceLastJump = 0;
+
             jumpPhase += 1;
             float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
 
@@ -228,13 +237,15 @@ public class MovingSphere : MonoBehaviour
     }
 
     // 필요한 경우 땅에 붙도록 하는 메소드 (기능이 동작한 여부를 리턴)
+    // 급격한 지면 변화의 경우에 작동한다
     bool SnapToGround()
     {
         // 각 조건이 너무 길어서 각각 한건가....?
         // else보다는 의미의 명확성을 위해? (어차피 if 들어가면 return으로 나감)
 
         // 지면에서 떨어진 후 충분한(=1) physics step이 경과했는가?
-        if (stepsSinceLastGrounded > 1)
+        // 점프 스텝은, 점프 직후에 바로 Snap되는 걸 막기 위함
+        if (stepsSinceLastGrounded > 1 || stepsSinceLastJump <= 2)
         {
             // 땅에 붙어있지 않다
             return false;
@@ -249,7 +260,7 @@ public class MovingSphere : MonoBehaviour
         }
 
         // 하단으로 쏜 Ray와 충돌하는 것이 없는가?
-        if (!Physics.Raycast(body.position, Vector3.down, out RaycastHit hit, probeDistance))
+        if (!Physics.Raycast(body.position, Vector3.down, out RaycastHit hit, probeDistance, probeMask))
         {
             // 땅이 없음
             return false;
