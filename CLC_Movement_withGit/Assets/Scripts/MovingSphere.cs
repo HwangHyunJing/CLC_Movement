@@ -39,6 +39,9 @@ public class MovingSphere : MonoBehaviour
     // 접촉면의 지면 각도를 판별
     Vector3 contactNormal;
 
+    // 마지막으로 땅에 닿은 후 지난 physics step
+    int stepsSinceLastGrounded;
+
     Rigidbody body;
 
     private void Awake()
@@ -105,11 +108,14 @@ public class MovingSphere : MonoBehaviour
     // 기본적인 상태값을을 업데이트
     void UpdateState()
     {
+        stepsSinceLastGrounded += 1;
+
         // 앞에 저장했던 속도를 그대로 사용해서 판단
         velocity = body.velocity;
 
-        if(OnGround)
+        if(OnGround || SnapToGround())
         {
+            stepsSinceLastGrounded = 0;
             jumpPhase = 0;
             if(groundContactCount > 1)
             {
@@ -209,5 +215,35 @@ public class MovingSphere : MonoBehaviour
         float newZ = Mathf.MoveTowards(currentZ, desiredVelocity.z, maxSpeedChange);
 
         velocity += xAxis * (newX - currentX) + zAxis * (newZ - currentZ);
+    }
+
+    // 땅에 붙어있는지 여부를 리턴하는 메소드
+    bool SnapToGround()
+    {
+        // 각 조건이 너무 길어서 각각 한건가....?
+        // else보다는 의미의 명확성을 위해? (어차피 if 들어가면 return으로 나감)
+
+        // 지면에서 떨어진 후 충분한(=1) physics step이 경과했는가?
+        if (stepsSinceLastGrounded > 1)
+        {
+            // 땅에 붙을 이유가 없다
+            return false;
+        }
+
+        // 하단으로 쏜 Ray가 무언가와 충돌했는가?
+        if (!Physics.Raycast(body.position, Vector3.down, out RaycastHit hit))
+        {
+            return false;
+        }
+
+        // 이 지면은 땅으로 판단될 만큼 완만한가?
+        if(hit.normal.y < minGroundDotProduct)
+        {
+            // 가파르다 = 땅이 아니다 = 굳이 붙어야 됨?
+            return false;
+        }
+        groundContactCount = 1;
+        contactNormal = hit.normal;
+        return true;
     }
 }
