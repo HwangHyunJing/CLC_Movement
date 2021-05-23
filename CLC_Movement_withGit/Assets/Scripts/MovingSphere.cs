@@ -25,8 +25,10 @@ public class MovingSphere : MonoBehaviour
     // 점프의 가능 여부를 판명
     bool desiredJump;
 
-    // 땅 위에 있는가 판명
-    bool onGround;
+    // 땅 위에 있는가 판명 >> 아래의 기능에 포함되므로 대체
+    // bool onGround;
+    int groundContactCount;
+    bool OnGround => groundContactCount > 0;
 
     // 공중에서 점프를 몇 번 했는가 체크
     int jumpPhase;
@@ -103,10 +105,13 @@ public class MovingSphere : MonoBehaviour
         // 앞에 저장했던 속도를 그대로 사용해서 판단
         velocity = body.velocity;
 
-        if(onGround)
+        if(OnGround)
         {
             jumpPhase = 0;
-            contactNormal.Normalize();
+            if(groundContactCount > 1)
+            {
+                contactNormal.Normalize();
+            }            
         }
         else
         {
@@ -118,7 +123,8 @@ public class MovingSphere : MonoBehaviour
     void ClearState()
     {
         // 
-        onGround = false;
+        // onGround = false;
+        groundContactCount = 0;
         // Evaluate Collision에서 Contact Normal이 단순 할당이 아니라 '축적'방식으로 변경.
         // 때문에 이를 초기화하는 코드가 필요
         
@@ -127,7 +133,7 @@ public class MovingSphere : MonoBehaviour
 
     void Jump()
     {
-        if(onGround || jumpPhase < maxAirJumps)
+        if(OnGround || jumpPhase < maxAirJumps)
         {
             jumpPhase += 1;
             float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
@@ -170,7 +176,8 @@ public class MovingSphere : MonoBehaviour
             // onGround |= normal.y >= minGroundDotProduct;
             if(normal.y >= minGroundDotProduct)
             {
-                onGround = true;
+                // OnGround = true;
+                groundContactCount += 1;
                 // 모든 닿아있는 지면에 대해서 판단
                 contactNormal += normal;
                 
@@ -192,7 +199,7 @@ public class MovingSphere : MonoBehaviour
         float currentX = Vector3.Dot(velocity, xAxis);
         float currentZ = Vector3.Dot(velocity, zAxis);
 
-        float acceleration = onGround ? maxAcceleration : maxAirAcceleration;
+        float acceleration = OnGround ? maxAcceleration : maxAirAcceleration;
         float maxSpeedChange = acceleration * Time.deltaTime;
 
         float newX = Mathf.MoveTowards(currentX, desiredVelocity.x, maxSpeedChange);
