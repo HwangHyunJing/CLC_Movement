@@ -81,22 +81,6 @@ public class MovingSphere : MonoBehaviour
         UpdateState();
         AdjustVelocity();
 
-        /*
-        float acceleration = onGround ? maxAcceleration : maxAirAcceleration;
-        float maxSpeedChange = acceleration * Time.deltaTime;
-
-        velocity.x = Mathf.MoveTowards(velocity.x, desiredVelocity.x, maxSpeedChange);
-        velocity.z = Mathf.MoveTowards(velocity.z, desiredVelocity.z, maxSpeedChange);
-        */
-
-        /*
-        Vector3 displacement = velocity * Time.deltaTime;
-
-        // local Position에 바로 접근해도 되지만, 변수를 한 번 거쳐서 판단
-        Vector3 newPosition = transform.localPosition + displacement;
-
-        transform.localPosition = newPosition;
-        */
 
         // 점프 여부를 판단, 실행
         if (desiredJump)
@@ -108,10 +92,9 @@ public class MovingSphere : MonoBehaviour
         // rigidbody가 추가되면서 필요 없어진 요소들은 전부 제거
         body.velocity = velocity;
 
-        
-
         // 점프 판단 후에는 다시 onGround를 디폴트 값인 false로 바꿔준다
-        onGround = false;
+        // onGround = false;
+        ClearState();
     }
 
     // 기본적인 상태값을을 업데이트
@@ -123,7 +106,23 @@ public class MovingSphere : MonoBehaviour
         if(onGround)
         {
             jumpPhase = 0;
+            contactNormal.Normalize();
         }
+        else
+        {
+            contactNormal = Vector3.up;
+        }
+    }
+
+    // 복합적인 기능이 필요하므로, 별도의 메소드를 추가
+    void ClearState()
+    {
+        // 
+        onGround = false;
+        // Evaluate Collision에서 Contact Normal이 단순 할당이 아니라 '축적'방식으로 변경.
+        // 때문에 이를 초기화하는 코드가 필요
+        
+        contactNormal = Vector3.zero;
     }
 
     void Jump()
@@ -172,11 +171,9 @@ public class MovingSphere : MonoBehaviour
             if(normal.y >= minGroundDotProduct)
             {
                 onGround = true;
-                contactNormal = normal;
-            }
-            else
-            {
-                contactNormal = Vector3.up;
+                // 모든 닿아있는 지면에 대해서 판단
+                contactNormal += normal;
+                
             }
         }
     }
