@@ -75,6 +75,9 @@ public class MovingSphere : MonoBehaviour
         // 점프에 대한 입력을 받았는가?
         // |=를 쓰면 비 입력 상태가 점프 하려는 상태를 덮어쓰는 일이 없어진다
         desiredJump |= Input.GetButtonDown("Jump");
+
+        // 확인을 위한 색상 변경
+        GetComponent<Renderer>().material.SetColor("_Color", OnGround ? Color.black : Color.white);
     }
 
     // 값에 대한 계산들을 처리, 판단
