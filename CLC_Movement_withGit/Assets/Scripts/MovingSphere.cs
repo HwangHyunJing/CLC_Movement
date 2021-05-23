@@ -16,6 +16,13 @@ public class MovingSphere : MonoBehaviour
     [SerializeField, Range(0, 5)]
     int maxAirJumps = 0;
 
+    [SerializeField, Range(0f, 100f)]
+    float maxSnapSpeed = 100f;
+
+    [SerializeField, Min(0f)]
+    float probeDistance = 1f;
+
+    // 지면으로 판단하는 최대 각도
     [SerializeField, Range(0f, 90f)]
     float maxGroundAngle = 25f;
 
@@ -53,6 +60,7 @@ public class MovingSphere : MonoBehaviour
     private void OnValidate()
     {
         // 땅으로 판단하는 최소 각도를 정해준다
+        // Vector3.up과 표면 법선 벡터와의 Dot 연산 결과와도 동일하다 (물론 라디안은 곱해줘야)
         minGroundDotProduct = Mathf.Cos(maxGroundAngle) * Mathf.Deg2Rad;
     }
 
@@ -194,8 +202,10 @@ public class MovingSphere : MonoBehaviour
         }
     }
 
+    // player 구체가 경사의 '지면을 따라서' 이동하는 방향 (구하려는 것)
     Vector3 ProjectOnContactPlane (Vector3 vector)
     {
+        // 그냥 차벡터로 방향을 바꾼 것
         return vector - contactNormal * Vector3.Dot(vector, contactNormal);
     }
 
@@ -217,7 +227,7 @@ public class MovingSphere : MonoBehaviour
         velocity += xAxis * (newX - currentX) + zAxis * (newZ - currentZ);
     }
 
-    // 땅에 붙어있는지 여부를 리턴하는 메소드
+    // 필요한 경우 땅에 붙도록 하는 메소드 (기능이 동작한 여부를 리턴)
     bool SnapToGround()
     {
         // 각 조건이 너무 길어서 각각 한건가....?
@@ -226,24 +236,44 @@ public class MovingSphere : MonoBehaviour
         // 지면에서 떨어진 후 충분한(=1) physics step이 경과했는가?
         if (stepsSinceLastGrounded > 1)
         {
-            // 땅에 붙을 이유가 없다
+            // 땅에 붙어있지 않다
             return false;
         }
 
-        // 하단으로 쏜 Ray가 무언가와 충돌했는가?
-        if (!Physics.Raycast(body.position, Vector3.down, out RaycastHit hit))
+        // 구체의 속력이 Snap을 허용할 상한을 넘는가?
+        float speed = velocity.magnitude;
+        if(speed > maxSnapSpeed)
         {
+            // Snap하기에 너무 빠름
             return false;
         }
 
-        // 이 지면은 땅으로 판단될 만큼 완만한가?
+        // 하단으로 쏜 Ray와 충돌하는 것이 없는가?
+        if (!Physics.Raycast(body.position, Vector3.down, out RaycastHit hit, probeDistance))
+        {
+            // 땅이 없음
+            return false;
+        }
+
+        // 이 지면은 가파른가?
+        // minGroundDotProduct는 값이 클수록 지면이 가파르다
+        // 직접 그려서 normal.y랑 비교하면 알 수 있다
         if(hit.normal.y < minGroundDotProduct)
         {
-            // 가파르다 = 땅이 아니다 = 굳이 붙어야 됨?
+            // 가파르기에 땅으로 판단할 수 없음
             return false;
         }
+
+        // 이 모든 조건을 패스 = 지면에 Snap 해야하는 상태가 맞다
         groundContactCount = 1;
+        // contact normal은 이미 속도/가속도 관련해서 쓰는 중
         contactNormal = hit.normal;
+        // float speed = velocity.magnitude;
+        float dot = Vector3.Dot(velocity, hit.normal);
+        if(dot > 0f)
+        {
+            velocity = (velocity - hit.normal * dot).normalized * speed;
+        }       
         return true;
     }
 }
