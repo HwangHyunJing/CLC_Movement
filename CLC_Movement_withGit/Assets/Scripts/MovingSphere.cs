@@ -26,8 +26,12 @@ public class MovingSphere : MonoBehaviour
     [SerializeField, Range(0f, 90f)]
     float maxGroundAngle = 25f;
 
+    // 계단으로 판단하는 최대 각도
+    [SerializeField, Range(0, 90)]
+    float maxStairAngle = 50f;
+
     [SerializeField]
-    LayerMask probeMask = -1;
+    LayerMask probeMask = -1, stairsMask = -1;
 
     // desired 속도도 전역으로 처리
     Vector3 velocity, desiredVelocity;
@@ -40,14 +44,22 @@ public class MovingSphere : MonoBehaviour
     int groundContactCount;
     bool OnGround => groundContactCount > 0;
 
+    // groundContactCount에 대응해서 생성
+    int steepContactCount;
+    bool OnSteep => steepContactCount > 0;
+
     // 공중에서 점프를 몇 번 했는가 체크
     int jumpPhase;
 
     // 땅으로 판정해주는 최소 값: 별도로 정의해줘야 한다
     float minGroundDotProduct;
+    // 계단으로 판정해주는 최소 값
+    float minStairsDotProdut;
 
     // 접촉면의 지면 각도를 판별
     Vector3 contactNormal;
+    // 기울기가 크지만 천장 정도는 아닌 지면에 대한 법선
+    Vector3 steepNormal;
 
     // 마지막으로 땅에 닿은 후 지난 physics step
     int stepsSinceLastGrounded;
@@ -67,6 +79,7 @@ public class MovingSphere : MonoBehaviour
         // 땅으로 판단하는 최소 각도를 정해준다
         // Vector3.up과 표면 법선 벡터와의 Dot 연산 결과와도 동일하다 (물론 라디안은 곱해줘야)
         minGroundDotProduct = Mathf.Cos(maxGroundAngle) * Mathf.Deg2Rad;
+        minStairsDotProdut = Mathf.Cos(maxStairAngle) * Mathf.Deg2Rad;
     }
 
     // Start is called before the first frame update
@@ -124,14 +137,24 @@ public class MovingSphere : MonoBehaviour
         stepsSinceLastGrounded += 1;
         stepsSinceLastJump += 1;
 
+
         // 앞에 저장했던 속도를 그대로 사용해서 판단
         velocity = body.velocity;
 
-        if(OnGround || SnapToGround())
+        if(OnGround || SnapToGround() || CheckSteepContacts())
         {
             stepsSinceLastGrounded = 0;
-            jumpPhase = 0;
-            if(groundContactCount > 1)
+
+            // 물론 땅에 닿으면 초기화되는 게 맞기는 하지만
+            // 점프가 입력된 직후(Update) 바로 jumpPhase가 여기서 0으로 초기화(FixedUpdate)되면 X
+            // 때문에 어느 정도의 스텝(1)이 지난 뒤에 jumpPhase가 초기화 될 가능성을 열어두는 것
+
+            // 즉 2부터 초기화되는 게 아니라, 1 이하에서 초기화되는 걸 막는다는 개념
+            if (stepsSinceLastJump > 1)
+            {
+                jumpPhase = 0;
+            }
+            if (groundContactCount > 1)
             {
                 contactNormal.Normalize();
             }            
@@ -144,41 +167,82 @@ public class MovingSphere : MonoBehaviour
 
     // 복합적인 기능이 필요하므로, 별도의 메소드를 추가
     void ClearState()
-    {
-        // 
-        // onGround = false;
-        groundContactCount = 0;
+    {        
+        groundContactCount = steepContactCount = 0;
         // Evaluate Collision에서 Contact Normal이 단순 할당이 아니라 '축적'방식으로 변경.
         // 때문에 이를 초기화하는 코드가 필요
         
-        contactNormal = Vector3.zero;
+        contactNormal = steepNormal = Vector3.zero;
     }
 
     void Jump()
     {
-        if(OnGround || jumpPhase < maxAirJumps)
+
+        Vector3 jumpDirection;
+
+        // jumpDirection의 값 할당
+
+        // 땅 위에 있는 경우
+        if (OnGround)
         {
-            // 점프가 막 실행되었으므로 해당 값 초기화
-            stepsSinceLastJump = 0;
+            jumpDirection = contactNormal;
+        }
+        // 땅은 아니지만, 가파른 지형에 닿아있는 경우
+        else if (OnSteep)
+        {
+            jumpDirection = steepNormal;
+            jumpPhase = 0;
+        }
+        // 아예 닿아있는 곳은 없지만 공중 점프가 가능한 경우
+        else if (maxAirJumps > 0 && jumpPhase <= maxAirJumps)
+        {
+            // 그대로 절벽에 떨어진 후에 점프키를 입력
+            // 이 경우 Air 이전의 일반 점프는 스킵
 
-            jumpPhase += 1;
-            float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
-
-            // contact normal 방향에 맞게 alignedSpeed (점프 속도) 설정
-            float alignedSpeed = Vector3.Dot(velocity, contactNormal);
-
-            // jumpSpeed 대신 slignedSpeed를 사용
-            if(alignedSpeed > 0f)
+            // 다만 이 직후에 만약 Air Jump 자체를 막아두었다면, 점프를 방지할 방법이 없으므로
+            // 그냥 if문에서 maxAirJumps > 0으로 사전에 막아두는 방식
+            if(jumpPhase == 0)
             {
-                // 점프 속도가 기존의 속도를 초과하지 못하도록 함
-                // velocity.y 대신에 alignedSpeed를 사용
-                jumpSpeed = Mathf.Max(jumpSpeed - alignedSpeed, 0f);
+                jumpPhase = 1;
             }
 
-            // 지면으로 판별되는 곳의 윗 벡터 * 점프 속력
-            velocity += contactNormal * jumpSpeed;
+            // Update State에서, 닿아있는 땅이 없으면 기본적으로 Vector3.up을 할당한다
+            jumpDirection = contactNormal;
         }
-        
+        else
+        {
+            return;
+        }            
+
+        // if(OnGround || jumpPhase < maxAirJumps)
+
+        // 점프가 막 실행되었으므로 해당 값 초기화
+        stepsSinceLastJump = 0;
+
+        jumpPhase += 1;
+        float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
+
+        // 벽 점프 시, 윗 방향으로 편향되도록 조정
+        // 벡터를 내리는 게 아니므로, 그냥 합벡터하고 방향을 뽑자 (정규화)
+        jumpDirection = (jumpDirection + Vector3.up).normalized;
+        // 일반 점프, 공중 점프의 Dir은 어차피 이미 Vector3.up을 사용하고 있어서 변화X
+
+        // contact normal 방향에 맞게 alignedSpeed (점프 속도) 설정
+        // contact Normal대신, 다양한 방향으로 점프가 가능하도록 jump Direction을 사용
+        float alignedSpeed = Vector3.Dot(velocity, jumpDirection);
+
+        // jumpSpeed 대신 slignedSpeed를 사용
+        if (alignedSpeed > 0f)
+        {
+            // 점프 속도가 기존의 속도를 초과하지 못하도록 함
+            // velocity.y 대신에 alignedSpeed를 사용
+            jumpSpeed = Mathf.Max(jumpSpeed - alignedSpeed, 0f);
+        }
+
+        // 지면으로 판별되는 곳의 윗 벡터 * 점프 속력
+        velocity += jumpDirection * jumpSpeed;
+
+
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -196,6 +260,8 @@ public class MovingSphere : MonoBehaviour
     // 충돌 시 법선을 판단
     void EvaluateCollision (Collision collision)
     {
+        // 지금 collide한 대상이 지면인가 계단인가
+        float minDot = GetMinDot(collision.gameObject.layer);
         for(int i=0; i<collision.contactCount; i++)
         {
             Vector3 normal = collision.GetContact(i).normal;
@@ -207,6 +273,13 @@ public class MovingSphere : MonoBehaviour
                 // 모든 닿아있는 지면에 대해서 판단
                 contactNormal += normal;
                 
+            }
+            else if (normal.y > -0.01f)
+            {
+                // (벽보다 완만한) 모든 가파른 면에 대해 판단한다는 의미
+                // 원래는 minStairsDotProduct가 맞는데, 조금 더 유연하게 적용
+                steepContactCount += 1;
+                steepNormal += normal;
             }
         }
     }
@@ -286,5 +359,29 @@ public class MovingSphere : MonoBehaviour
             velocity = (velocity - hit.normal * dot).normalized * speed;
         }       
         return true;
+    }
+
+    float GetMinDot (int layer)
+    {
+        // &는 bit AND 연산자입니다
+        return (stairsMask & (1 << layer)) == 0 ? minGroundDotProduct : minStairsDotProdut;
+    }
+
+    // SnapToGround 검사에서, 땅에 떨어져있기는 한데 자격이 있는 지면이 없는 경우 호출
+    bool CheckSteepContacts()
+    {
+        if(steepContactCount > 1)
+        {
+            steepNormal.Normalize();
+            if(steepNormal.y >= minGroundDotProduct)
+            {
+                groundContactCount = 1;
+                contactNormal = steepNormal;
+                return true;
+            }
+        }
+
+
+        return false;
     }
 }
