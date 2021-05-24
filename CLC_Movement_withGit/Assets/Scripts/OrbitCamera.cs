@@ -31,11 +31,21 @@ public class OrbitCamera : MonoBehaviour
     [SerializeField, Range(-89f, 89f)]
     float minVerticalAngle = -30f, maxVerticalAngle = 60f;
 
+    // 자동 정렬 시 속도의 제한
+    [SerializeField, Range(0f, 90f)]
+    float alignSmoothRange = 45f;
+
     // 위/아래로 까딱거리는 각도 (0도가 수평, 90도가 수직으로 아래)
     // Z rotation 성분은 필요 없으므로 그냥 Vector2 사용했다
     Vector2 orbitAngles = new Vector2(45f, 0f);
 
+    // 카메라가 실제로 바라보는 위치
     Vector3 focusPoint;
+    // 자동 정렬에서 카메라가 바라볼 위치
+    Vector3 previousFocusPoint;
+
+    // 일정 시간동안 Rotation을 입력하지 않으면, 카메라가 자동으로 align 된다
+    float lastManualRotationTime;
 
     private void OnValidate()
     {
@@ -78,7 +88,8 @@ public class OrbitCamera : MonoBehaviour
         // 사용자 지정 입력이 있는지 여부에 따라 입력값과 디폴트로 나뉨
         Quaternion lookRotation;
 
-        if(ManualRotation())
+        // 카메라 회전 입력이 있는지 확인 > 없으면 자동 정렬 여부를 확인
+        if(ManualRotation() || AutomaticRotation())
         {
             // 각도의 입력값 자체를 제한범위 안에 들어가도록 하기 (Clamp)
             ConstrainAngles();
@@ -97,8 +108,11 @@ public class OrbitCamera : MonoBehaviour
         transform.SetPositionAndRotation(lookPosition, lookRotation);
     }
 
+    // 카메라가 '실제로' 바라볼 Focus Point들을 정의하는 곳
     void UpdateFocusPoint()
     {
+        // 이전 프레임의 focus Point를 저장
+        previousFocusPoint = focusPoint;
         Vector3 targetPoint = focus.position;
 
         if(focusRadius > 0f)
@@ -143,7 +157,11 @@ public class OrbitCamera : MonoBehaviour
         const float e = 0.001f;
         if (input.x < -e || input.x > e || input.y < -e || input.y > e)
         {
+            // Orbit Angles는 '변화량'이 아니라 '이동해야 하는 값'이 맞습니다
             orbitAngles += rotationSpeed * Time.unscaledDeltaTime * input;
+
+            // 회전에 대한 입력이 수행되었을 경우, 그 순간의 시간을 받음
+            lastManualRotationTime = Time.unscaledTime;
             return true;
         }
 
@@ -166,5 +184,69 @@ public class OrbitCamera : MonoBehaviour
         {
             orbitAngles.y -= 360f;
         }
+    }
+
+    // 시간을 비교해서 자동정렬을 할 것인지 여부를 리턴하는 메소드
+    bool AutomaticRotation()
+    {
+        // 지금 시각 - 마지막으로 회전한 시각 < 기준 딜레이
+        if(Time.unscaledTime - lastManualRotationTime < alignDelay)
+        {
+            // 아직 delay 만큼의 시간이 경과되지 않았으므로 자동 정렬 실행하지 X
+            return false;
+        }
+
+        // if 충분한 딜레이 이상의 시간동안 매뉴얼 rotation이 없었다면
+        // 움직임 자체가 있었는지 확인?
+
+        // 차이 = 움직여야 하는 정도
+        Vector2 movement = new Vector2(
+            focusPoint.x - previousFocusPoint.x,
+            focusPoint.z - previousFocusPoint.z
+        );
+
+        // 벡터의 정확한 크기 값 자체를 원하는 게 아니면, 그냥 제곱된 크기를 가져오는게 좋다
+        float movementDeltaSqr = movement.sqrMagnitude;
+
+        // 이전 프레임에서 조금의 차이라도 존재하지 않는다면
+        if(movementDeltaSqr < 0.000001f)
+        {
+            // 굳이 자동으로 돌릴 이유가 없다
+            return false;
+        }
+
+        // 카메라의 수평 성분에 대해서 자동 정렬을 실행합니다
+        // Get Angle의 인자는, mvoement의 방향 벡터. movementDeltaSqr이 뭔지 잘 생각해보자
+        float headingAngle = GetAngle(movement / Mathf.Sqrt(movementDeltaSqr));
+
+        // 지금 각도 대비 정렬하려는 각도와의 델타값에 대한 절대값(Abs)
+        float deltaAbs = Mathf.Abs(Mathf.DeltaAngle(orbitAngles.y, headingAngle));
+        // float rotationChange = rotationSpeed * Time.unscaledDeltaTime;
+        float rotationChange = rotationSpeed * Mathf.Min(Time.unscaledDeltaTime, movementDeltaSqr);
+
+        // 변화량이 일정 기준보다 크지 않다면
+        if(deltaAbs < alignSmoothRange)
+        {
+            rotationChange *= deltaAbs / alignSmoothRange;
+        }
+        else if(180f - deltaAbs < alignSmoothRange)
+        {
+            rotationChange *= (180f - deltaAbs) / alignSmoothRange;
+        }
+
+        // 이 만큼 돌아가라...
+        orbitAngles.y
+            = Mathf.MoveTowardsAngle(orbitAngles.y, headingAngle, rotationChange);
+        return true;
+    }
+
+    // 
+    static float GetAngle (Vector2 direction)
+    {
+        // 아주 평범한 아코싸인
+        float angle = Mathf.Acos(direction.y) * Mathf.Rad2Deg;
+
+        // 각도가 음수인 경우 무조건 양수 결과가 나오도록 함
+        return direction.x < 0f ? 360f - angle : angle;
     }
 }
