@@ -221,8 +221,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc7cb196c36343c4ea1f138cf726d056, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxSpeed: 20
-  maxAcceleration: 5
+  maxSpeed: 40
+  maxAcceleration: 20
   maxAirAcceleration: 1
   jumpHeight: 2
   maxAirJumps: 1
@@ -231,4 +231,4 @@ MonoBehaviour:
   maxGroundAngle: 50
   probeMask:
     serializedVersion: 2
-    m_Bits: 51
+    m_Bits: 1075
