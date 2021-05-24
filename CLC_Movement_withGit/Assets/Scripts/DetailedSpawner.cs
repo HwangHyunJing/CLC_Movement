@@ -4,7 +4,6 @@ using UnityEngine;
 
 public class DetailedSpawner : MonoBehaviour
 {
-
     public GameObject detailed;
 
     // Start is called before the first frame update
