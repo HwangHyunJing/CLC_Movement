@@ -24,16 +24,33 @@ public class OrbitCamera : MonoBehaviour
     [SerializeField, Range(1f, 360f)]
     float rotationSpeed = 90f;
 
+    [SerializeField, Min(0f)]
+    float alignDelay = 5f;
+
+    // 카메라가 회전할 수 있는 수직 최대/최소 각도
+    [SerializeField, Range(-89f, 89f)]
+    float minVerticalAngle = -30f, maxVerticalAngle = 60f;
+
     // 위/아래로 까딱거리는 각도 (0도가 수평, 90도가 수직으로 아래)
     // Z rotation 성분은 필요 없으므로 그냥 Vector2 사용했다
     Vector2 orbitAngles = new Vector2(45f, 0f);
 
     Vector3 focusPoint;
 
+    private void OnValidate()
+    {
+        // 실수로 max값을 min보다 작게 입력한 경우
+        if(maxVerticalAngle < minVerticalAngle)
+        {
+            maxVerticalAngle = minVerticalAngle;
+        }
+    }
+
     private void Awake()
     {
         // 받아온 focus 값을 활용하기 위해 다시 변수로 받음
         focusPoint = focus.position;
+        transform.localRotation = Quaternion.Euler(orbitAngles);
     }
 
     // Start is called before the first frame update
@@ -53,9 +70,26 @@ public class OrbitCamera : MonoBehaviour
     {
         // Vector3 focusPoint = focus.position;
         UpdateFocusPoint();
+        ManualRotation();
 
         // 계산을 위해 오일러 식으로 변경
-        Quaternion lookRotation = Quaternion.Euler(orbitAngles);
+        // Quaternion lookRotation = Quaternion.Euler(orbitAngles);
+
+        // 사용자 지정 입력이 있는지 여부에 따라 입력값과 디폴트로 나뉨
+        Quaternion lookRotation;
+
+        if(ManualRotation())
+        {
+            // 각도의 입력값 자체를 제한범위 안에 들어가도록 하기 (Clamp)
+            ConstrainAngles();
+            lookRotation = Quaternion.Euler(orbitAngles);
+        }
+        else
+        {
+            // 카메라의 회전이 입력되지 않는 경우에 해당 (키보드 입력일 수도 있잖아 ?)
+            lookRotation = transform.localRotation;
+            // 이를 활용하기 위해서는 localRotaion을 우선적으로 활성화해야 한다.
+        }
 
         Vector3 lookDirection = transform.forward;
         Vector3 lookPosition = focusPoint - lookDirection * distance;
@@ -99,7 +133,7 @@ public class OrbitCamera : MonoBehaviour
         
     }
 
-    void ManualRotation()
+    bool ManualRotation()
     {
         Vector2 input = new Vector2(
             Input.GetAxis("Vertical Camera"),
@@ -110,6 +144,27 @@ public class OrbitCamera : MonoBehaviour
         if (input.x < -e || input.x > e || input.y < -e || input.y > e)
         {
             orbitAngles += rotationSpeed * Time.unscaledDeltaTime * input;
+            return true;
+        }
+
+        return false;
+    }
+
+    // 설정한 값에 따라 각도를 제한
+    void ConstrainAngles()
+    {
+        // orbitAngles: 최종적으로 정해지는 각도
+        // Clamp가 min과 max 인자 사이에 값이 오도록 하는 메소드
+        orbitAngles.x = Mathf.Clamp(orbitAngles.x, minVerticalAngle, maxVerticalAngle);
+
+        // 각도의 결과가 0 ~ 360안에 들어오도록 강제
+        if(orbitAngles.y < 0f)
+        {
+            orbitAngles.y += 360f;
+        }
+        else if(orbitAngles.y >= 360f)
+        {
+            orbitAngles.y -= 360f;
         }
     }
 }
