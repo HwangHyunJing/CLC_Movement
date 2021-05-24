@@ -20,6 +20,14 @@ public class OrbitCamera : MonoBehaviour
     [SerializeField, Range(0f, 1f)]
     float focusCentering = .5f;
 
+    // 카메라가 돌아가는 정도
+    [SerializeField, Range(1f, 360f)]
+    float rotationSpeed = 90f;
+
+    // 위/아래로 까딱거리는 각도 (0도가 수평, 90도가 수직으로 아래)
+    // Z rotation 성분은 필요 없으므로 그냥 Vector2 사용했다
+    Vector2 orbitAngles = new Vector2(45f, 0f);
+
     Vector3 focusPoint;
 
     private void Awake()
@@ -45,8 +53,14 @@ public class OrbitCamera : MonoBehaviour
     {
         // Vector3 focusPoint = focus.position;
         UpdateFocusPoint();
+
+        // 계산을 위해 오일러 식으로 변경
+        Quaternion lookRotation = Quaternion.Euler(orbitAngles);
+
         Vector3 lookDirection = transform.forward;
-        transform.localPosition = focusPoint - lookDirection * distance;
+        Vector3 lookPosition = focusPoint - lookDirection * distance;
+        // transform.localPosition = focusPoint - lookDirection * distance;
+        transform.SetPositionAndRotation(lookPosition, lookRotation);
     }
 
     void UpdateFocusPoint()
@@ -65,6 +79,7 @@ public class OrbitCamera : MonoBehaviour
                 // 월드 타임을 건드는 메소드에 영향을 받지 않도록
                 // deltaTime 대신 unscaledDeltaTime을 사용
                 t = Mathf.Pow(1f - focusCentering, Time.unscaledDeltaTime);
+                // 이렇게 역 등비수열로 하면, 서서히 줄어드는 속력을 만들 수 있다
             }
             
             if (distance > focusRadius)
@@ -82,5 +97,19 @@ public class OrbitCamera : MonoBehaviour
             focusPoint = targetPoint;
         }
         
+    }
+
+    void ManualRotation()
+    {
+        Vector2 input = new Vector2(
+            Input.GetAxis("Vertical Camera"),
+            Input.GetAxis("Horizontal Camera")
+        );
+
+        const float e = 0.001f;
+        if (input.x < -e || input.x > e || input.y < -e || input.y > e)
+        {
+            orbitAngles += rotationSpeed * Time.unscaledDeltaTime * input;
+        }
     }
 }
