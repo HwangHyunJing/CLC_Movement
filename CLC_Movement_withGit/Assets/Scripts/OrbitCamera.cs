@@ -37,6 +37,11 @@ public class OrbitCamera : MonoBehaviour
     [SerializeField, Range(0f, 90f)]
     float alignSmoothRange = 45f;
 
+    // box cast에 사용될 layer
+    [SerializeField]
+    LayerMask obstructionMask = -1;
+
+
     // 위/아래로 까딱거리는 각도 (0도가 수평, 90도가 수직으로 아래)
     // Z rotation 성분은 필요 없으므로 그냥 Vector2 사용했다
     Vector2 orbitAngles = new Vector2(45f, 0f);
@@ -49,6 +54,10 @@ public class OrbitCamera : MonoBehaviour
     // 일정 시간동안 Rotation을 입력하지 않으면, 카메라가 자동으로 align 된다
     float lastManualRotationTime;
 
+    // (뭔가의 이유로 인해) 자기 자신의 Camera 컴포넌트를 가져와야 한다
+    // (이 스크립트를 지닌 오브젝트는 카메라 자체가 아닙니다)
+    Camera regularCamera;
+
     private void OnValidate()
     {
         // 실수로 max값을 min보다 작게 입력한 경우
@@ -60,6 +69,7 @@ public class OrbitCamera : MonoBehaviour
 
     private void Awake()
     {
+        regularCamera = GetComponent<Camera>();
         // 받아온 focus 값을 활용하기 위해 다시 변수로 받음
         focusPoint = focus.position;
         transform.localRotation = Quaternion.Euler(orbitAngles);
@@ -104,7 +114,33 @@ public class OrbitCamera : MonoBehaviour
         // 기존에 정면을 바라보고있던 카메라를 look Rotation만큼 돌리는 과정
         Vector3 lookDirection = lookRotation * Vector3.forward;
         Vector3 lookPosition = focusPoint - lookDirection * distance;
-        
+
+        Vector3 rectOffset = lookDirection * regularCamera.nearClipPlane;
+        Vector3 rectPosition = lookPosition + rectOffset;
+        Vector3 castFrom = focus.position;
+        Vector3 castLine = rectPosition - castFrom;
+        float castDistance = castLine.magnitude;
+        Vector3 castDirection = castLine / castDistance;
+
+        /*
+        if(Physics.Raycast(focusPoint, -lookDirection, out RaycastHit hit, distance))
+        {
+            lookPosition = focusPoint - lookDirection * hit.distance;
+        }
+        */
+        // 인자를 잘 보면, focus Point에서 box형태로 cast하는 중
+        // halfExtends: 상자 크기를 정의. 해당 값은 그 크기의 절반
+        if (Physics.BoxCast(castFrom, CameraHalfExtends, castDirection, out RaycastHit hit, lookRotation, castDistance, obstructionMask))
+        {
+            // focusPoint -> castFrom(focus.position)
+            // -lookDirection -> castDirection(castLine.magnitude)
+            // distance - regularCamera.nearClipPlane -> castDistance(castLine/castDistance)
+
+            rectPosition = castFrom + castDirection * hit.distance;
+            // near Clip Plane 더한건 최소한의 카메라 시야 확보를 위함
+            lookPosition = focusPoint - lookDirection * (hit.distance + regularCamera.nearClipPlane);
+        }
+
         // 카메라를 look Rotation만큼 돌리고, 그 만큼의 look Position에 위치
         transform.SetPositionAndRotation(lookPosition, lookRotation);
     }
@@ -253,5 +289,21 @@ public class OrbitCamera : MonoBehaviour
 
         // 각도가 음수인 경우 무조건 양수 결과가 나오도록 함
         return direction.x < 0f ? 360f - angle : angle;
+    }
+
+    // 장애물 인식을 위한 Box Cast의 상자 크기를 정의 (정확히는 그 상자의 절반 크기)
+    Vector3 CameraHalfExtends
+    {
+        get
+        {
+            Vector3 halfExtends;
+            // 높이는 그냥 near clip plane 기준으로 box casting하는 듯
+            halfExtends.y = regularCamera.nearClipPlane * Mathf.Tan(0.5f * Mathf.Deg2Rad * regularCamera.fieldOfView);
+            // Camera.aspect: 너비/높이 = 쉽게 말해서 tan
+            // 별 거 없고, 그냥 카메라의 화면비에 맞춰서 y값이 줄어든 만큼 x값을 얻는 방식
+            halfExtends.x = halfExtends.y * regularCamera.aspect;
+            halfExtends.z = 0f;
+            return halfExtends;
+        }
     }
 }

@@ -33,6 +33,9 @@ public class MovingSphere : MonoBehaviour
     [SerializeField]
     LayerMask probeMask = -1, stairsMask = -1;
 
+    [SerializeField]
+    Transform playerInputSpace = default;
+
     // desired 속도도 전역으로 처리
     Vector3 velocity, desiredVelocity;
 
@@ -99,7 +102,25 @@ public class MovingSphere : MonoBehaviour
         
         playerInput = Vector2.ClampMagnitude(playerInput, 1f);
 
-        desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
+        // 플레이어가 카메라(playerInputSpace)에 맞게 돌아가는 것
+        if (playerInputSpace)
+        {
+            // 순수하게 카메라 Input의 앞/옆 성분만 가져오는 과정
+            Vector3 forward = playerInputSpace.forward;
+            forward.y = 0f; // 수직 성분 제거
+            forward.Normalize();
+
+            Vector3 right = playerInputSpace.right;
+            right.y = 0f; // 수직 성분 제거
+            right.Normalize();
+
+            // desiredVelocity = playerInputSpace.TransformDirection(playerInput.x, 0f, playerInput.y) * maxSpeed;
+            desiredVelocity = (forward * playerInput.y + right * playerInput.x) * maxSpeed;
+        }
+        else
+        {
+            desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
+        }      
 
         // 점프에 대한 입력을 받았는가?
         // |=를 쓰면 비 입력 상태가 점프 하려는 상태를 덮어쓰는 일이 없어진다
