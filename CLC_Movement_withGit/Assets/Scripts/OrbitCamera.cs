@@ -10,13 +10,15 @@ public class OrbitCamera : MonoBehaviour
     [SerializeField]
     Transform focus = default;
 
+    // focus point에서 카메라까지의 거리
     [SerializeField, Range(1f, 20f)]
     float distance = 5f;
 
+    // 물체가 최소 어느 정도 움직일 때 부터 카메라가 이를 따르는가?
     [SerializeField, Min(0f)]
     float focusRadius = 1f;
 
-    // 카메라와 플레이어 사이 어느 정도에 위치할지를 정함
+    // 카메라가 센터링되는 시기의 정도 (1로 하면 카메라가 delay 없이 그대로 따라감)
     [SerializeField, Range(0f, 1f)]
     float focusCentering = .5f;
 
@@ -80,19 +82,16 @@ public class OrbitCamera : MonoBehaviour
     {
         // Vector3 focusPoint = focus.position;
         UpdateFocusPoint();
-        ManualRotation();
-
-        // 계산을 위해 오일러 식으로 변경
-        // Quaternion lookRotation = Quaternion.Euler(orbitAngles);
 
         // 사용자 지정 입력이 있는지 여부에 따라 입력값과 디폴트로 나뉨
         Quaternion lookRotation;
 
-        // 카메라 회전 입력이 있는지 확인 > 없으면 자동 정렬 여부를 확인
+        // 카메라 회전 입력이 있는지 확인 || 없으면 자동 정렬 여부를 확인
         if(ManualRotation() || AutomaticRotation())
         {
             // 각도의 입력값 자체를 제한범위 안에 들어가도록 하기 (Clamp)
             ConstrainAngles();
+            // 즉 입력에 따라 orbit angle가 정해지는 방식
             lookRotation = Quaternion.Euler(orbitAngles);
         }
         else
@@ -102,26 +101,31 @@ public class OrbitCamera : MonoBehaviour
             // 이를 활용하기 위해서는 localRotaion을 우선적으로 활성화해야 한다.
         }
 
-        Vector3 lookDirection = transform.forward;
+        // 기존에 정면을 바라보고있던 카메라를 look Rotation만큼 돌리는 과정
+        Vector3 lookDirection = lookRotation * Vector3.forward;
         Vector3 lookPosition = focusPoint - lookDirection * distance;
-        // transform.localPosition = focusPoint - lookDirection * distance;
+        
+        // 카메라를 look Rotation만큼 돌리고, 그 만큼의 look Position에 위치
         transform.SetPositionAndRotation(lookPosition, lookRotation);
     }
 
     // 카메라가 '실제로' 바라볼 Focus Point들을 정의하는 곳
+    // focus.position(실제값) > targetPoint(업데이팅) > (focusRadius 조건에 따라) focus Point
     void UpdateFocusPoint()
     {
         // 이전 프레임의 focus Point를 저장
         previousFocusPoint = focusPoint;
         Vector3 targetPoint = focus.position;
 
+        // focus Radius 만큼 이동했을 때부터 카메라가 그 움직임을 트레킹
         if(focusRadius > 0f)
         {
             // Camera와 Player Sphere 사이의 거리
+            // target Point는 지속적으로 Update되고, focus Point는 그 결과에 따라 값이 할당
             float distance = Vector3.Distance(targetPoint, focusPoint);
             float t = 1f;
 
-            // 카메라와 플레이어 사이에 거리가 존재 && focus Centering 보정이 필요
+            // 최소한의 이동이 존재 && 카메라가 focus Point에 붙어있지 않음
             if(distance > 0.01f && focusCentering > 0f)
             {
                 // 월드 타임을 건드는 메소드에 영향을 받지 않도록
@@ -142,6 +146,7 @@ public class OrbitCamera : MonoBehaviour
         }
         else
         {
+            // 그냥 카메라가 모든 움직임을 즉각적으로 캐치하겠다고 설정한 경우
             focusPoint = targetPoint;
         }
         
@@ -186,7 +191,7 @@ public class OrbitCamera : MonoBehaviour
         }
     }
 
-    // 시간을 비교해서 자동정렬을 할 것인지 여부를 리턴하는 메소드
+    // 현 프레임에서 벡터의 움직임을 계산하는 메소드
     bool AutomaticRotation()
     {
         // 지금 시각 - 마지막으로 회전한 시각 < 기준 딜레이
@@ -205,7 +210,7 @@ public class OrbitCamera : MonoBehaviour
             focusPoint.z - previousFocusPoint.z
         );
 
-        // 벡터의 정확한 크기 값 자체를 원하는 게 아니면, 그냥 제곱된 크기를 가져오는게 좋다
+        // movement 크기의 제곱
         float movementDeltaSqr = movement.sqrMagnitude;
 
         // 이전 프레임에서 조금의 차이라도 존재하지 않는다면
