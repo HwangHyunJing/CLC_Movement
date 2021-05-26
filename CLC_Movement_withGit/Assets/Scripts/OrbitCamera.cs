@@ -58,6 +58,12 @@ public class OrbitCamera : MonoBehaviour
     // (이 스크립트를 지닌 오브젝트는 카메라 자체가 아닙니다)
     Camera regularCamera;
 
+    // 바뀐 중력에 따른 카메라의 정렬
+    // Quaternion.identity는 Vector3.zero랑 비슷한 역할인듯
+    Quaternion gravityAlignment = Quaternion.identity;
+
+    Quaternion orbitRotation;
+
     private void OnValidate()
     {
         // 실수로 max값을 min보다 작게 입력한 경우
@@ -72,29 +78,21 @@ public class OrbitCamera : MonoBehaviour
         regularCamera = GetComponent<Camera>();
         // 받아온 focus 값을 활용하기 위해 다시 변수로 받음
         focusPoint = focus.position;
-        transform.localRotation = Quaternion.Euler(orbitAngles);
-    }
-
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        transform.localRotation = orbitRotation = Quaternion.Euler(orbitAngles);
     }
 
     // Update에서의 일들이 처리된 후 작동
     private void LateUpdate()
     {
+        // 기준이 되는 값은 가장 먼저 설정한다
+        gravityAlignment = Quaternion.FromToRotation(gravityAlignment * Vector3.up, -Physics.gravity.normalized) * gravityAlignment;
+
         // Vector3 focusPoint = focus.position;
         UpdateFocusPoint();
 
         // 사용자 지정 입력이 있는지 여부에 따라 입력값과 디폴트로 나뉨
-        Quaternion lookRotation;
+        // Quaternion lookRotation;
+        // 기존에 lookRotation은 중력의 방향이 아래인 경우만 커버할 수 있으므로 패기
 
         // 카메라 회전 입력이 있는지 확인 || 없으면 자동 정렬 여부를 확인
         if(ManualRotation() || AutomaticRotation())
@@ -102,14 +100,19 @@ public class OrbitCamera : MonoBehaviour
             // 각도의 입력값 자체를 제한범위 안에 들어가도록 하기 (Clamp)
             ConstrainAngles();
             // 즉 입력에 따라 orbit angle가 정해지는 방식
-            lookRotation = Quaternion.Euler(orbitAngles);
+            // lookRotation = Quaternion.Euler(orbitAngles);
+            orbitRotation = Quaternion.Euler(orbitAngles);
         }
+
+        /*
         else
         {
             // 카메라의 회전이 입력되지 않는 경우에 해당 (키보드 입력일 수도 있잖아 ?)
             lookRotation = transform.localRotation;
             // 이를 활용하기 위해서는 localRotaion을 우선적으로 활성화해야 한다.
         }
+        */
+        Quaternion lookRotation = gravityAlignment * orbitRotation;
 
         // 기존에 정면을 바라보고있던 카메라를 look Rotation만큼 돌리는 과정
         Vector3 lookDirection = lookRotation * Vector3.forward;
@@ -240,11 +243,19 @@ public class OrbitCamera : MonoBehaviour
         // if 충분한 딜레이 이상의 시간동안 매뉴얼 rotation이 없었다면
         // 움직임 자체가 있었는지 확인?
 
+        // 
+        Vector3 alignedDelta = Quaternion.Inverse(gravityAlignment) * (focusPoint - previousFocusPoint);
+
         // 차이 = 움직여야 하는 정도
+        /*
         Vector2 movement = new Vector2(
             focusPoint.x - previousFocusPoint.x,
             focusPoint.z - previousFocusPoint.z
         );
+        */
+
+        // 
+        Vector2 movement = new Vector2(alignedDelta.x, alignedDelta.z);
 
         // movement 크기의 제곱
         float movementDeltaSqr = movement.sqrMagnitude;
