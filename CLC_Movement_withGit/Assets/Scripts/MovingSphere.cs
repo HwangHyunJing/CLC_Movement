@@ -43,7 +43,6 @@ public class MovingSphere : MonoBehaviour
     bool desiredJump;
 
     // 땅 위에 있는가 판명 >> 아래의 기능에 포함되므로 대체
-    // bool onGround;
     int groundContactCount;
     bool OnGround => groundContactCount > 0;
 
@@ -68,6 +67,11 @@ public class MovingSphere : MonoBehaviour
     int stepsSinceLastGrounded;
     // 점프의 횟수가 아니라, 마지막 점프 후 지난 physics step
     int stepsSinceLastJump;
+
+    // 환경에 따라 지정되는 '위' 방향
+    Vector3 upAxis;
+    // upAxis의 변경에 따라, right, forward의 방향도 달라진다
+    Vector3 rightAxis, forwardAxis;
 
     Rigidbody body;
 
@@ -105,6 +109,7 @@ public class MovingSphere : MonoBehaviour
         // 플레이어가 카메라(playerInputSpace)에 맞게 돌아가는 것
         if (playerInputSpace)
         {
+            /*
             // 순수하게 카메라 Input의 앞/옆 성분만 가져오는 과정
             Vector3 forward = playerInputSpace.forward;
             forward.y = 0f; // 수직 성분 제거
@@ -114,13 +119,19 @@ public class MovingSphere : MonoBehaviour
             right.y = 0f; // 수직 성분 제거
             right.Normalize();
 
-            // desiredVelocity = playerInputSpace.TransformDirection(playerInput.x, 0f, playerInput.y) * maxSpeed;
             desiredVelocity = (forward * playerInput.y + right * playerInput.x) * maxSpeed;
+            */
+            rightAxis = ProjectDirectionOnPlane(playerInputSpace.right, upAxis);
+            forwardAxis = ProjectDirectionOnPlane(playerInputSpace.forward, upAxis);
         }
         else
         {
-            desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
-        }      
+            rightAxis = ProjectDirectionOnPlane(Vector3.right, upAxis);
+            forwardAxis = ProjectDirectionOnPlane(Vector3.forward, upAxis);           
+        }
+
+        // 코드 통일에 따라 이동
+        desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
 
         // 점프에 대한 입력을 받았는가?
         // |=를 쓰면 비 입력 상태가 점프 하려는 상태를 덮어쓰는 일이 없어진다
@@ -132,7 +143,10 @@ public class MovingSphere : MonoBehaviour
 
     // 값에 대한 계산들을 처리, 판단
     private void FixedUpdate()
-    {        
+    {
+        // 값의 계산이니 Fixed Update에, 중력이기 때문에 가장 우선
+        upAxis = -Physics.gravity.normalized;
+
         UpdateState();
         AdjustVelocity();
 
@@ -148,7 +162,6 @@ public class MovingSphere : MonoBehaviour
         body.velocity = velocity;
 
         // 점프 판단 후에는 다시 onGround를 디폴트 값인 false로 바꿔준다
-        // onGround = false;
         ClearState();
     }
 
@@ -182,7 +195,9 @@ public class MovingSphere : MonoBehaviour
         }
         else
         {
-            contactNormal = Vector3.up;
+            // '위'에 대한 모든 정의가 바뀜; Vector3.up -> upAxis;
+            // contactNormal = Vector3.up;
+            contactNormal = upAxis;
         }
     }
 
@@ -235,17 +250,16 @@ public class MovingSphere : MonoBehaviour
             return;
         }            
 
-        // if(OnGround || jumpPhase < maxAirJumps)
-
         // 점프가 막 실행되었으므로 해당 값 초기화
         stepsSinceLastJump = 0;
 
         jumpPhase += 1;
-        float jumpSpeed = Mathf.Sqrt(-2f * Physics.gravity.y * jumpHeight);
+        // 중력의 성분 중 일부만 사용
+        float jumpSpeed = Mathf.Sqrt(2f * Physics.gravity.magnitude * jumpHeight);
 
         // 벽 점프 시, 윗 방향으로 편향되도록 조정
         // 벡터를 내리는 게 아니므로, 그냥 합벡터하고 방향을 뽑자 (정규화)
-        jumpDirection = (jumpDirection + Vector3.up).normalized;
+        jumpDirection = (jumpDirection + upAxis).normalized;
         // 일반 점프, 공중 점프의 Dir은 어차피 이미 Vector3.up을 사용하고 있어서 변화X
 
         // contact normal 방향에 맞게 alignedSpeed (점프 속도) 설정
@@ -268,13 +282,11 @@ public class MovingSphere : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        // onGround = true;
         EvaluateCollision(collision);
     }
 
     private void OnCollisionStay(Collision collision)
     {
-        // onGround = true;
         EvaluateCollision(collision);
     }
 
@@ -286,8 +298,12 @@ public class MovingSphere : MonoBehaviour
         for(int i=0; i<collision.contactCount; i++)
         {
             Vector3 normal = collision.GetContact(i).normal;
-            // onGround |= normal.y >= minGroundDotProduct;
-            if(normal.y >= minGroundDotProduct)
+
+            // SnapToGround(), CheckSteepContacts()처럼 upAxis를 기존의 normal 성분에 내적
+            float upDot = Vector3.Dot(upAxis, normal);
+
+            // normal.y -> upDot;
+            if(upDot >= minGroundDotProduct)
             {
                 // OnGround = true;
                 groundContactCount += 1;
@@ -295,7 +311,7 @@ public class MovingSphere : MonoBehaviour
                 contactNormal += normal;
                 
             }
-            else if (normal.y > -0.01f)
+            else if (upDot > -0.01f)
             {
                 // (벽보다 완만한) 모든 가파른 면에 대해 판단한다는 의미
                 // 원래는 minStairsDotProduct가 맞는데, 조금 더 유연하게 적용
@@ -305,18 +321,33 @@ public class MovingSphere : MonoBehaviour
         }
     }
 
+    /*
     // player 구체가 경사의 '지면을 따라서' 이동하는 방향 (구하려는 것)
     Vector3 ProjectOnContactPlane (Vector3 vector)
     {
         // 그냥 차벡터로 방향을 바꾼 것
         return vector - contactNormal * Vector3.Dot(vector, contactNormal);
     }
+    */
+
+    // normal의 방향이 임의로 바뀔 수 있어서, 아예 이를 인자로 넘김
+    // 기존에 contactNormal을 인자로 넘기기도 하지만, 평지 상에서 right, forward를 구하기 위해 upAxis를 넘기기도 한다
+    Vector3 ProjectDirectionOnPlane (Vector3 direction, Vector3 normal)
+    {
+        return (direction - normal * Vector3.Dot(direction, normal)).normalized;
+    }
+
 
     // contact Plane에 따라 점프 속도를 조정해주는 메소드
     void AdjustVelocity()
     {
+        /*
         Vector3 xAxis = ProjectOnContactPlane(Vector3.right).normalized;
         Vector3 zAxis = ProjectOnContactPlane(Vector3.forward).normalized;
+        */
+
+        Vector3 xAxis = ProjectDirectionOnPlane(rightAxis, contactNormal);
+        Vector3 zAxis = ProjectDirectionOnPlane(forwardAxis, contactNormal);
 
         float currentX = Vector3.Dot(velocity, xAxis);
         float currentZ = Vector3.Dot(velocity, zAxis);
@@ -334,6 +365,8 @@ public class MovingSphere : MonoBehaviour
     // 급격한 지면 변화의 경우에 작동한다
     bool SnapToGround()
     {
+        
+
         // 각 조건이 너무 길어서 각각 한건가....?
         // else보다는 의미의 명확성을 위해? (어차피 if 들어가면 return으로 나감)
 
@@ -354,16 +387,21 @@ public class MovingSphere : MonoBehaviour
         }
 
         // 하단으로 쏜 Ray와 충돌하는 것이 없는가?
-        if (!Physics.Raycast(body.position, Vector3.down, out RaycastHit hit, probeDistance, probeMask))
+        if (!Physics.Raycast(body.position, -upAxis, out RaycastHit hit, probeDistance, probeMask))
         {
             // 땅이 없음
             return false;
         }
 
+        // '위'의 정의가 변경 > 충돌 지점 기준으로, hit의 '위'도 변경
+        float upDot = Vector3.Dot(upAxis, hit.normal);
+
         // 이 지면은 가파른가?
         // minGroundDotProduct는 값이 클수록 지면이 가파르다
         // 직접 그려서 normal.y랑 비교하면 알 수 있다
-        if(hit.normal.y < minGroundDotProduct)
+
+        // hit,normal.y -> upDot
+        if (upDot < minGroundDotProduct)
         {
             // 가파르기에 땅으로 판단할 수 없음
             return false;
@@ -373,7 +411,6 @@ public class MovingSphere : MonoBehaviour
         groundContactCount = 1;
         // contact normal은 이미 속도/가속도 관련해서 쓰는 중
         contactNormal = hit.normal;
-        // float speed = velocity.magnitude;
         float dot = Vector3.Dot(velocity, hit.normal);
         if(dot > 0f)
         {
@@ -394,7 +431,12 @@ public class MovingSphere : MonoBehaviour
         if(steepContactCount > 1)
         {
             steepNormal.Normalize();
-            if(steepNormal.y >= minGroundDotProduct)
+
+            // 중력 변경으로 인한 추가
+            float upDot = Vector3.Dot(upAxis, steepNormal);
+
+            // steepNormal.y -> upDot
+            if(upDot >= minGroundDotProduct)
             {
                 groundContactCount = 1;
                 contactNormal = steepNormal;
