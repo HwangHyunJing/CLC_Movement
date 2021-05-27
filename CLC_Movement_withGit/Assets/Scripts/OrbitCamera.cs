@@ -85,7 +85,8 @@ public class OrbitCamera : MonoBehaviour
     private void LateUpdate()
     {
         // 기준이 되는 값은 가장 먼저 설정한다
-        gravityAlignment = Quaternion.FromToRotation(gravityAlignment * Vector3.up, -Physics.gravity.normalized) * gravityAlignment;
+        // -Physics.gravity.normalized -> CustomGravity.GetUpAxis(focusPoint)
+        gravityAlignment = Quaternion.FromToRotation(gravityAlignment * Vector3.up, CustomGravity.GetUpAxis(focusPoint)) * gravityAlignment;
 
         // Vector3 focusPoint = focus.position;
         UpdateFocusPoint();

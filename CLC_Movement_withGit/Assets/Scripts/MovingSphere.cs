@@ -78,6 +78,8 @@ public class MovingSphere : MonoBehaviour
     private void Awake()
     {
         body = GetComponent<Rigidbody>();
+        // rigidbody에서 지원하는 중력을 제거
+        body.useGravity = false;
         OnValidate();
     }
 
@@ -145,7 +147,10 @@ public class MovingSphere : MonoBehaviour
     private void FixedUpdate()
     {
         // 값의 계산이니 Fixed Update에, 중력이기 때문에 가장 우선
-        upAxis = -Physics.gravity.normalized;
+        // 여기도 Physics.gravity 대신에 CustomGravity의 정적 메소드를 사용
+        // upAxis = -Physics.gravity.normalized;
+        Vector3 gravity = CustomGravity.GetGravity(body.position, out upAxis);
+        // 어차피 out 파라미터 덕분에 upAxis값을 사용할 수 있다
 
         UpdateState();
         AdjustVelocity();
@@ -155,8 +160,12 @@ public class MovingSphere : MonoBehaviour
         if (desiredJump)
         {
             desiredJump = false;
-            Jump();
+            // Jump();
+            Jump(gravity);
         }
+
+        // 
+        velocity += gravity * Time.deltaTime;
 
         // rigidbody가 추가되면서 필요 없어진 요소들은 전부 제거
         body.velocity = velocity;
@@ -211,7 +220,7 @@ public class MovingSphere : MonoBehaviour
         contactNormal = steepNormal = Vector3.zero;
     }
 
-    void Jump()
+    void Jump(Vector3 gravity)
     {
 
         Vector3 jumpDirection;
@@ -255,7 +264,7 @@ public class MovingSphere : MonoBehaviour
 
         jumpPhase += 1;
         // 중력의 성분 중 일부만 사용
-        float jumpSpeed = Mathf.Sqrt(2f * Physics.gravity.magnitude * jumpHeight);
+        float jumpSpeed = Mathf.Sqrt(2f * gravity.magnitude * jumpHeight);
 
         // 벽 점프 시, 윗 방향으로 편향되도록 조정
         // 벡터를 내리는 게 아니므로, 그냥 합벡터하고 방향을 뽑자 (정규화)
