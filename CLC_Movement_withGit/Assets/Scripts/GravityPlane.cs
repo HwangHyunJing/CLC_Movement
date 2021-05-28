@@ -24,7 +24,17 @@ public class GravityPlane : GravitySource
         {
             return Vector3.zero;
         }
-        return -gravity * up;
+
+        // 여러 중력이 겹치는 경우 순식간에 동일한 크기의 중력이 여러곳에서 작용
+        // 이 때문에 컨트롤 및 카메라 각도에 급격한 변화가 생기게 된다
+        float g = -gravity;
+        if(distance > 0f)
+        {
+            // 거리에 따른 중력의 감소
+            g *= 1f - distance / range;
+        }
+
+        return g * up;
     }
 
     private void OnDrawGizmos()
