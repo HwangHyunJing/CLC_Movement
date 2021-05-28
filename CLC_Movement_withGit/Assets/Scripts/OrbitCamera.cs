@@ -41,6 +41,9 @@ public class OrbitCamera : MonoBehaviour
     [SerializeField]
     LayerMask obstructionMask = -1;
 
+    [SerializeField, Min(0f)]
+    float upAlignmentSpeed = 360f;
+
 
     // 위/아래로 까딱거리는 각도 (0도가 수평, 90도가 수직으로 아래)
     // Z rotation 성분은 필요 없으므로 그냥 Vector2 사용했다
@@ -85,14 +88,14 @@ public class OrbitCamera : MonoBehaviour
     private void LateUpdate()
     {
         // 기준이 되는 값은 가장 먼저 설정한다
-        // -Physics.gravity.normalized -> CustomGravity.GetUpAxis(focusPoint)
-        gravityAlignment = Quaternion.FromToRotation(gravityAlignment * Vector3.up, CustomGravity.GetUpAxis(focusPoint)) * gravityAlignment;
+        // gravityAlignment = Quaternion.FromToRotation(gravityAlignment * Vector3.up, CustomGravity.GetUpAxis(focusPoint)) * gravityAlignment;
+        // 기존의 기능을 넘기면서 동시에 추가
+        UpdateGravityAlignment();
 
         // Vector3 focusPoint = focus.position;
         UpdateFocusPoint();
 
         // 사용자 지정 입력이 있는지 여부에 따라 입력값과 디폴트로 나뉨
-        // Quaternion lookRotation;
         // 기존에 lookRotation은 중력의 방향이 아래인 경우만 커버할 수 있으므로 패기
 
         // 카메라 회전 입력이 있는지 확인 || 없으면 자동 정렬 여부를 확인
@@ -101,18 +104,9 @@ public class OrbitCamera : MonoBehaviour
             // 각도의 입력값 자체를 제한범위 안에 들어가도록 하기 (Clamp)
             ConstrainAngles();
             // 즉 입력에 따라 orbit angle가 정해지는 방식
-            // lookRotation = Quaternion.Euler(orbitAngles);
             orbitRotation = Quaternion.Euler(orbitAngles);
         }
 
-        /*
-        else
-        {
-            // 카메라의 회전이 입력되지 않는 경우에 해당 (키보드 입력일 수도 있잖아 ?)
-            lookRotation = transform.localRotation;
-            // 이를 활용하기 위해서는 localRotaion을 우선적으로 활성화해야 한다.
-        }
-        */
         Quaternion lookRotation = gravityAlignment * orbitRotation;
 
         // 기존에 정면을 바라보고있던 카메라를 look Rotation만큼 돌리는 과정
@@ -126,20 +120,10 @@ public class OrbitCamera : MonoBehaviour
         float castDistance = castLine.magnitude;
         Vector3 castDirection = castLine / castDistance;
 
-        /*
-        if(Physics.Raycast(focusPoint, -lookDirection, out RaycastHit hit, distance))
-        {
-            lookPosition = focusPoint - lookDirection * hit.distance;
-        }
-        */
         // 인자를 잘 보면, focus Point에서 box형태로 cast하는 중
         // halfExtends: 상자 크기를 정의. 해당 값은 그 크기의 절반
         if (Physics.BoxCast(castFrom, CameraHalfExtends, castDirection, out RaycastHit hit, lookRotation, castDistance, obstructionMask))
         {
-            // focusPoint -> castFrom(focus.position)
-            // -lookDirection -> castDirection(castLine.magnitude)
-            // distance - regularCamera.nearClipPlane -> castDistance(castLine/castDistance)
-
             rectPosition = castFrom + castDirection * hit.distance;
             // near Clip Plane 더한건 최소한의 카메라 시야 확보를 위함
             lookPosition = focusPoint - lookDirection * (hit.distance + regularCamera.nearClipPlane);
@@ -316,6 +300,42 @@ public class OrbitCamera : MonoBehaviour
             halfExtends.x = halfExtends.y * regularCamera.aspect;
             halfExtends.z = 0f;
             return halfExtends;
+        }
+    }
+
+    // 기존에 gravity alignment를, 인게임에서 변하는 중력에 맞춰서 바로 변환하는 메소드
+    void UpdateGravityAlignment()
+    { 
+        // 기존에 From To Rotation의 각 인자값
+        Vector3 fromUp = gravityAlignment * Vector3.up;
+        Vector3 toUp = CustomGravity.GetUpAxis(focusPoint);
+
+        // 중력이 바뀔때, 카메라는 '서서히 돌아가도록' 하기 위한 값
+        // (이거 없으면 그냥 순식간에 중력에 맞춰서 전환)
+
+        // float dot = Vector3.Dot(fromUp, toUp);
+        // Acos에는 -1 ~ 1의 값만 들어가야 하지만, 오차로 인해 이를 벗어나면 오류가 뜬다
+        // 이를 막기 위해서 단순히 Dot의 결과를 할당하지 않고 Clamp까지 해주는 것
+        float dot = Mathf.Clamp(Vector3.Dot(fromUp, toUp), -1f, 1f);
+        float angle = Mathf.Acos(dot) * Mathf.Rad2Deg;
+        float maxAngle = upAlignmentSpeed * Time.deltaTime;
+
+        // 카메라의 윗 방향을, (중력의 영향을 받은) 플레이어의 윗 방향으로 돌리는 쿼터니언을 리턴
+        // 그래서 리턴값을 다시 gravity Alignment에 곱하는 것
+        Quaternion newAlignment 
+            = Quaternion.FromToRotation(fromUp, toUp) * gravityAlignment;
+        
+        // 현재 각도 차이가 alignment의 최대 각도를 넘어서지 않는다면 즉시 전환
+        if(angle <= maxAngle)
+        {
+            gravityAlignment = newAlignment;
+        }
+        else
+        {
+            // 이를 넘어선다면 서서히 전환
+            gravityAlignment 
+                = Quaternion.SlerpUnclamped(gravityAlignment, newAlignment, maxAngle / angle);
+            // Slerp Unclamped를 쓰는게 interpolate 옵션에서 오차를 줄이는 방법
         }
     }
 }
