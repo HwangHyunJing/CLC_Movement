@@ -30,13 +30,14 @@ public class GravityPlane : GravitySource
         float g = -gravity;
         if(distance > 0f)
         {
-            // 거리에 따른 중력의 감소
+            // 거리에 따른 중력의 감소: distance == range이면 g가 0이 된다
             g *= 1f - distance / range;
         }
 
         return g * up;
     }
 
+    // OnDrawGIzmos는 라이브러리 메소드입니다
     private void OnDrawGizmos()
     {
         // 만약 ProBuilder를 쓴다면, 물체의 pivot(중심)을 가운데로 설정해야 한다
