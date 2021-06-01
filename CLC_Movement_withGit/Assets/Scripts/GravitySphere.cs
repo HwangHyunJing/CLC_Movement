@@ -13,9 +13,13 @@ public class GravitySphere : GravitySource
     [SerializeField, Min(0f)]
     float outerRadius = 10f, outerFalloffRadius = 15f;
 
+    // 내부 행성에서의 중력을 위한 값들
+    [SerializeField, Min(0f)]
+    float innerFalloffRadius = 1f, innerRadius = 5f;
+
     // 거리에 따라서 감소되는 중력의 정도
     // 이 값은 지정된 상수가 아니라 outerFalloff, outer 이 두개에 따라서 달라진다
-    float outerFalloffFactor;
+    float innerFalloffFactor, outerFalloffFactor;
 
     private void Awake()
     {
@@ -24,14 +28,34 @@ public class GravitySphere : GravitySource
 
     private void OnValidate()
     {
+        // 0보다 작아지지 않게 막음
+        innerFalloffRadius = Mathf.Max(innerFalloffRadius, 0f);
+        // inner Radius가 inner Falloff보다 크도록 함
+        innerRadius = Mathf.Max(innerRadius, innerFalloffRadius);
+
+        // 외부 중력 반지름이 당연히 내부 중력 반지름보다 커야 한다
+        outerRadius = Mathf.Max(outerRadius, innerRadius);
+
         outerFalloffRadius = Mathf.Max(outerFalloffRadius, outerRadius);
+
+        innerFalloffFactor = 1f / (innerRadius - innerFalloffRadius);
         outerFalloffFactor = 1f / (outerFalloffRadius - outerRadius);
     }
 
     private void OnDrawGizmos()
     {
         Vector3 p = transform.position;
+        if(innerFalloffRadius > 0f && innerFalloffRadius < innerRadius)
+        {
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireSphere(p, innerFalloffRadius);
+        }
+
         Gizmos.color = Color.yellow;
+        if(innerRadius > 0f && innerRadius < outerRadius)
+        {
+            Gizmos.DrawWireSphere(p, innerRadius);
+        }
         Gizmos.DrawWireSphere(p, outerRadius);
         if(outerFalloffRadius > outerRadius)
         {
@@ -45,7 +69,7 @@ public class GravitySphere : GravitySource
         // 플레이어 -> 중심으로 향하는 중력 방향의 벡터
         Vector3 vector = transform.position - position;
         float distance = vector.magnitude;
-        if(distance > outerFalloffRadius)
+        if(distance > outerFalloffRadius || distance < innerFalloffRadius)
         {
             return Vector3.zero;
         }
@@ -55,12 +79,18 @@ public class GravitySphere : GravitySource
         // (방향 성분만 따로 뽑을 이유가 없어서 그럼)
         float g = gravity / distance;
 
-        // 방향은 정해졌으니, 크기만 조정
+        // outer 내부이면 동일한 중력, 그 밖인 경우 거리에 따라서 약해짐
         if(distance > outerRadius)
         {
             // 이것도 plane처럼, distance == outerRadius이면 중력의 손실이 없음
             // 반대로 distance가 outerFalloffRadius가 되면 g는 0이 됨 (OnValidate 참고)
             g *= 1f - (distance - outerRadius) * outerFalloffFactor;
+        }
+        // 그게 아니면 반대로, inner보다 내부에 있는가?
+        else if(distance < innerRadius)
+        {
+            // inner == innerFalloff이면 g는 0
+            g *= 1f - (innerRadius - distance) * innerFalloffFactor;
         }
 
         return g * vector;
