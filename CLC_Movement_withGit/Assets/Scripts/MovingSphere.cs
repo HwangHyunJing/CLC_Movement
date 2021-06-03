@@ -38,6 +38,10 @@ public class MovingSphere : MonoBehaviour
 
     // desired 속도도 전역으로 처리
     Vector3 velocity, desiredVelocity;
+    // 연결된 물체의 속도를 저장하는 변수 (필수는 아니지만 있으면 편함)
+    Vector3 connectionVelocity;
+    //
+    Vector3 connectionWorldPosition;
 
     // 점프의 가능 여부를 판명
     bool desiredJump;
@@ -74,6 +78,8 @@ public class MovingSphere : MonoBehaviour
     Vector3 rightAxis, forwardAxis;
 
     Rigidbody body;
+    // 플레이어와 연결되어 있는 일부 움직이는 플랫폼을 트래킹하기 위한 변수
+    Rigidbody connectedBody, previouslyConnectedBody;
 
     private void Awake()
     {
@@ -91,12 +97,6 @@ public class MovingSphere : MonoBehaviour
         minStairsDotProdut = Mathf.Cos(maxStairAngle) * Mathf.Deg2Rad;
     }
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
     // 프레임마다 이동과 관련된 입력을 처리
     void Update()
     {
@@ -111,18 +111,6 @@ public class MovingSphere : MonoBehaviour
         // 플레이어가 카메라(playerInputSpace)에 맞게 돌아가는 것
         if (playerInputSpace)
         {
-            /*
-            // 순수하게 카메라 Input의 앞/옆 성분만 가져오는 과정
-            Vector3 forward = playerInputSpace.forward;
-            forward.y = 0f; // 수직 성분 제거
-            forward.Normalize();
-
-            Vector3 right = playerInputSpace.right;
-            right.y = 0f; // 수직 성분 제거
-            right.Normalize();
-
-            desiredVelocity = (forward * playerInput.y + right * playerInput.x) * maxSpeed;
-            */
             rightAxis = ProjectDirectionOnPlane(playerInputSpace.right, upAxis);
             forwardAxis = ProjectDirectionOnPlane(playerInputSpace.forward, upAxis);
         }
@@ -208,6 +196,28 @@ public class MovingSphere : MonoBehaviour
             // contactNormal = Vector3.up;
             contactNormal = upAxis;
         }
+
+        // 모든 판단을 마친 후
+        if(connectedBody)
+        {
+            // 플랫폼 외 여타 물체의 움직임까지 따라가지 않기 위함
+            // layer를 왜 안하나 했는데, 지형에 대한 layer가 없다 + 계산 부하 때문?
+            if(connectedBody.isKinematic || connectedBody.mass >= body.mass)
+            {
+                UpdateConnectionState();
+            }
+        }
+    }
+
+    // (Update State 에서 호출) 별도로 연결된 물체에 대한 처리
+    void UpdateConnectionState()
+    {
+        // -- if(connectedBody == previouslyConnectedBody)
+        Vector3 connectionMovement = connectedBody.position - connectionWorldPosition;
+        connectionVelocity = connectionMovement / Time.deltaTime;
+
+        // 연결된 물체에 대한 위치를 넘김
+        connectionWorldPosition = connectedBody.position;
     }
 
     // 복합적인 기능이 필요하므로, 별도의 메소드를 추가
@@ -217,7 +227,9 @@ public class MovingSphere : MonoBehaviour
         // Evaluate Collision에서 Contact Normal이 단순 할당이 아니라 '축적'방식으로 변경.
         // 때문에 이를 초기화하는 코드가 필요
         
-        contactNormal = steepNormal = Vector3.zero;
+        contactNormal = steepNormal = connectionVelocity = Vector3.zero;
+        // previousConnectedBody = connectedBody;
+        connectedBody = null;
     }
 
     void Jump(Vector3 gravity)
@@ -311,14 +323,15 @@ public class MovingSphere : MonoBehaviour
             // SnapToGround(), CheckSteepContacts()처럼 upAxis를 기존의 normal 성분에 내적
             float upDot = Vector3.Dot(upAxis, normal);
 
-            // normal.y -> upDot;
             if(upDot >= minGroundDotProduct)
             {
                 // OnGround = true;
                 groundContactCount += 1;
                 // 모든 닿아있는 지면에 대해서 판단
                 contactNormal += normal;
-                
+
+                // 지금 닿아있는 지면에 대한 rigidbody를 넘김
+                connectedBody = collision.rigidbody;
             }
             else if (upDot > -0.01f)
             {
@@ -326,18 +339,15 @@ public class MovingSphere : MonoBehaviour
                 // 원래는 minStairsDotProduct가 맞는데, 조금 더 유연하게 적용
                 steepContactCount += 1;
                 steepNormal += normal;
+
+                // 땅이 아니더라도 일단은 connected인 무언가이므로 저장
+                if(groundContactCount == 0)
+                {
+                    connectedBody = collision.rigidbody;
+                }
             }
         }
     }
-
-    /*
-    // player 구체가 경사의 '지면을 따라서' 이동하는 방향 (구하려는 것)
-    Vector3 ProjectOnContactPlane (Vector3 vector)
-    {
-        // 그냥 차벡터로 방향을 바꾼 것
-        return vector - contactNormal * Vector3.Dot(vector, contactNormal);
-    }
-    */
 
     // normal의 방향이 임의로 바뀔 수 있어서, 아예 이를 인자로 넘김
     // 기존에 contactNormal을 인자로 넘기기도 하지만, 평지 상에서 right, forward를 구하기 위해 upAxis를 넘기기도 한다
@@ -350,16 +360,16 @@ public class MovingSphere : MonoBehaviour
     // contact Plane에 따라 점프 속도를 조정해주는 메소드
     void AdjustVelocity()
     {
-        /*
-        Vector3 xAxis = ProjectOnContactPlane(Vector3.right).normalized;
-        Vector3 zAxis = ProjectOnContactPlane(Vector3.forward).normalized;
-        */
+        // 아예 일괄로 적용을 해버리네...
+        Vector3 relativeVelocity = velocity - connectionVelocity;
 
         Vector3 xAxis = ProjectDirectionOnPlane(rightAxis, contactNormal);
         Vector3 zAxis = ProjectDirectionOnPlane(forwardAxis, contactNormal);
 
-        float currentX = Vector3.Dot(velocity, xAxis);
-        float currentZ = Vector3.Dot(velocity, zAxis);
+        // velocity -> relative velocity
+        float currentX = Vector3.Dot(relativeVelocity, xAxis);
+        float currentZ = Vector3.Dot(relativeVelocity, zAxis);
+        // 이래서 움직이는 플랫폼 위에서는 관성도 있다
 
         float acceleration = OnGround ? maxAcceleration : maxAirAcceleration;
         float maxSpeedChange = acceleration * Time.deltaTime;
@@ -374,8 +384,6 @@ public class MovingSphere : MonoBehaviour
     // 급격한 지면 변화의 경우에 작동한다
     bool SnapToGround()
     {
-        
-
         // 각 조건이 너무 길어서 각각 한건가....?
         // else보다는 의미의 명확성을 위해? (어차피 if 들어가면 return으로 나감)
 
@@ -424,7 +432,10 @@ public class MovingSphere : MonoBehaviour
         if(dot > 0f)
         {
             velocity = (velocity - hit.normal * dot).normalized * speed;
-        }       
+        }
+
+        // slope의 경우에도 Snap이 가능한 경우라면 그냥 다 받으려는 속셈인 듯
+        connectedBody = hit.rigidbody;
         return true;
     }
 
@@ -452,8 +463,6 @@ public class MovingSphere : MonoBehaviour
                 return true;
             }
         }
-
-
         return false;
     }
 }
