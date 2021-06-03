@@ -38,10 +38,12 @@ public class MovingSphere : MonoBehaviour
 
     // desired 속도도 전역으로 처리
     Vector3 velocity, desiredVelocity;
-    // 연결된 물체의 속도를 저장하는 변수 (필수는 아니지만 있으면 편함)
+    // 연결된 플랫폼의 속도를 저장하는 변수 (필수는 아니지만 있으면 편함)
     Vector3 connectionVelocity;
-    //
+    // 움직이는 플랫폼의 위치
     Vector3 connectionWorldPosition;
+    // 움직이는 플랫폼의 로컬 위치 (회전하는 물체는 world 위치가 그대로이므로)
+    Vector3 connectionLocalPosition;
 
     // 점프의 가능 여부를 판명
     bool desiredJump;
@@ -201,7 +203,7 @@ public class MovingSphere : MonoBehaviour
         if(connectedBody)
         {
             // 플랫폼 외 여타 물체의 움직임까지 따라가지 않기 위함
-            // layer를 왜 안하나 했는데, 지형에 대한 layer가 없다 + 계산 부하 때문?
+            // layer를 왜 안하나 했는데, animated 된 물체는 velocity가 없다고 함
             if(connectedBody.isKinematic || connectedBody.mass >= body.mass)
             {
                 UpdateConnectionState();
@@ -213,11 +215,16 @@ public class MovingSphere : MonoBehaviour
     void UpdateConnectionState()
     {
         // -- if(connectedBody == previouslyConnectedBody)
-        Vector3 connectionMovement = connectedBody.position - connectionWorldPosition;
+        // connectedBody.position -> connectedBody.transform.TransformPoint(connectionLocalPosition)
+        Vector3 connectionMovement = connectedBody.transform.TransformPoint(connectionLocalPosition) - connectionWorldPosition;
+        // 속도 = 거리 / 시간이라는 간단한 공식
         connectionVelocity = connectionMovement / Time.deltaTime;
 
         // 연결된 물체에 대한 위치를 넘김
-        connectionWorldPosition = connectedBody.position;
+        // World는 플레이어의 위치를 저장?
+        // connectionWorldPosition = connectedBody.position;
+        connectionWorldPosition = body.position;
+        connectionLocalPosition = connectedBody.transform.InverseTransformPoint(connectionWorldPosition);
     }
 
     // 복합적인 기능이 필요하므로, 별도의 메소드를 추가
