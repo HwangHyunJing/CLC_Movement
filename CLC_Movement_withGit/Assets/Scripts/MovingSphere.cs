@@ -30,11 +30,19 @@ public class MovingSphere : MonoBehaviour
     [SerializeField, Range(0, 90)]
     float maxStairAngle = 50f;
 
+    // 지면, 벽과는 별개로, 오를 수 있는 최대 각도
+    [SerializeField, Range(90, 180)]
+    float maxClimbAngle = 140f;
+
     [SerializeField]
-    LayerMask probeMask = -1, stairsMask = -1;
+    LayerMask probeMask = -1, stairsMask = -1, climbMask = -1;
 
     [SerializeField]
     Transform playerInputSpace = default;
+
+    [SerializeField]
+    Material normalMaterial = default, jumpingMaterial = default, climbingMaterial = default;
+    
 
     // desired 속도도 전역으로 처리
     Vector3 velocity, desiredVelocity;
@@ -59,15 +67,24 @@ public class MovingSphere : MonoBehaviour
     // 공중에서 점프를 몇 번 했는가 체크
     int jumpPhase;
 
+    //  지면이 가팔라질수록 법선의 각도는 작아지는 게 맞으므로 min이다
     // 땅으로 판정해주는 최소 값: 별도로 정의해줘야 한다
     float minGroundDotProduct;
-    // 계단으로 판정해주는 최소 값
+    // 계단으로 판정해주는 최소값
     float minStairsDotProdut;
+    // 오를 수 있는 벽으로 판정해주는 최소값
+    float minClimbDotProduct;
 
     // 접촉면의 지면 각도를 판별
     Vector3 contactNormal;
     // 기울기가 크지만 천장 정도는 아닌 지면에 대한 법선
     Vector3 steepNormal;
+
+    // 벽을 오르기 위한 감지 변수
+    Vector3 climbNormal;
+    int climbContactCount;
+
+    bool Climbing => climbContactCount > 0;
 
     // 마지막으로 땅에 닿은 후 지난 physics step
     int stepsSinceLastGrounded;
@@ -83,11 +100,14 @@ public class MovingSphere : MonoBehaviour
     // 플레이어와 연결되어 있는 일부 움직이는 플랫폼을 트래킹하기 위한 변수
     Rigidbody connectedBody, previouslyConnectedBody;
 
+    MeshRenderer meshRenderer;
+
     private void Awake()
     {
         body = GetComponent<Rigidbody>();
         // rigidbody에서 지원하는 중력을 제거
         body.useGravity = false;
+        meshRenderer = GetComponent<MeshRenderer>();
         OnValidate();
     }
 
@@ -97,6 +117,7 @@ public class MovingSphere : MonoBehaviour
         // Vector3.up과 표면 법선 벡터와의 Dot 연산 결과와도 동일하다 (물론 라디안은 곱해줘야)
         minGroundDotProduct = Mathf.Cos(maxGroundAngle) * Mathf.Deg2Rad;
         minStairsDotProdut = Mathf.Cos(maxStairAngle) * Mathf.Deg2Rad;
+        minClimbDotProduct = Mathf.Cos(maxClimbAngle) * Mathf.Deg2Rad;
     }
 
     // 프레임마다 이동과 관련된 입력을 처리
@@ -130,7 +151,8 @@ public class MovingSphere : MonoBehaviour
         desiredJump |= Input.GetButtonDown("Jump");
 
         // 확인을 위한 색상 변경
-        GetComponent<Renderer>().material.SetColor("_Color", OnGround ? Color.black : Color.white);
+        // 원래 점프 용도로 확인하던게 있어서, 본문에서 하나 더 추가했다
+        meshRenderer.material = OnGround ? normalMaterial : (Climbing ? climbingMaterial : jumpingMaterial);
     }
 
     // 값에 대한 계산들을 처리, 판단
@@ -227,11 +249,13 @@ public class MovingSphere : MonoBehaviour
     // 복합적인 기능이 필요하므로, 별도의 메소드를 추가
     void ClearState()
     {        
-        groundContactCount = steepContactCount = 0;
+        groundContactCount = steepContactCount = climbContactCount = 0;
         // Evaluate Collision에서 Contact Normal이 단순 할당이 아니라 '축적'방식으로 변경.
         // 때문에 이를 초기화하는 코드가 필요
         
         contactNormal = steepNormal = connectionVelocity = Vector3.zero;
+        connectionVelocity = Vector3.zero;
+        previouslyConnectedBody = connectedBody;
         connectedBody = null;
     }
 
@@ -318,7 +342,8 @@ public class MovingSphere : MonoBehaviour
     void EvaluateCollision (Collision collision)
     {
         // 지금 collide한 대상이 지면인가 계단인가
-        float minDot = GetMinDot(collision.gameObject.layer);
+        int layer = collision.gameObject.layer;
+        float minDot = GetMinDot(layer);
         for(int i=0; i<collision.contactCount; i++)
         {
             Vector3 normal = collision.GetContact(i).normal;
@@ -336,16 +361,28 @@ public class MovingSphere : MonoBehaviour
                 // 지금 닿아있는 지면에 대한 rigidbody를 넘김
                 connectedBody = collision.rigidbody;
             }
-            else if (upDot > -0.01f)
+            // else if (upDot > -0.01f)
+            else
             {
                 // (벽보다 완만한) 모든 가파른 면에 대해 판단한다는 의미
-                // 원래는 minStairsDotProduct가 맞는데, 조금 더 유연하게 적용
-                steepContactCount += 1;
-                steepNormal += normal;
-
-                // 땅이 아니더라도 일단은 connected인 무언가이므로 저장
-                if(groundContactCount == 0)
+                if (upDot > -0.01f)
                 {
+                    // 원래는 minStairsDotProduct가 맞는데, 조금 더 유연하게 적용
+                    steepContactCount += 1;
+                    steepNormal += normal;
+
+                    // 땅이 아니더라도 일단은 connected인 무언가이므로 저장
+                    if (groundContactCount == 0)
+                    {
+                        connectedBody = collision.rigidbody;
+                    }
+                }
+
+                // 오를 수 있는 벽인지도 같이 판단 (이전 if문에 의해 땅은 걸러짐)
+                if (upDot >= minClimbDotProduct && (climbMask & (1 << layer)) != 0)
+                {
+                    climbContactCount += 1;
+                    climbNormal += normal;
                     connectedBody = collision.rigidbody;
                 }
             }
