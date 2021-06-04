@@ -214,15 +214,12 @@ public class MovingSphere : MonoBehaviour
     // (Update State 에서 호출) 별도로 연결된 물체에 대한 처리
     void UpdateConnectionState()
     {
-        // -- if(connectedBody == previouslyConnectedBody)
-        // connectedBody.position -> connectedBody.transform.TransformPoint(connectionLocalPosition)
         Vector3 connectionMovement = connectedBody.transform.TransformPoint(connectionLocalPosition) - connectionWorldPosition;
         // 속도 = 거리 / 시간이라는 간단한 공식
         connectionVelocity = connectionMovement / Time.deltaTime;
 
         // 연결된 물체에 대한 위치를 넘김
         // World는 플레이어의 위치를 저장?
-        // connectionWorldPosition = connectedBody.position;
         connectionWorldPosition = body.position;
         connectionLocalPosition = connectedBody.transform.InverseTransformPoint(connectionWorldPosition);
     }
@@ -235,7 +232,6 @@ public class MovingSphere : MonoBehaviour
         // 때문에 이를 초기화하는 코드가 필요
         
         contactNormal = steepNormal = connectionVelocity = Vector3.zero;
-        // previousConnectedBody = connectedBody;
         connectedBody = null;
     }
 
@@ -424,7 +420,6 @@ public class MovingSphere : MonoBehaviour
         // minGroundDotProduct는 값이 클수록 지면이 가파르다
         // 직접 그려서 normal.y랑 비교하면 알 수 있다
 
-        // hit,normal.y -> upDot
         if (upDot < minGroundDotProduct)
         {
             // 가파르기에 땅으로 판단할 수 없음
@@ -462,7 +457,6 @@ public class MovingSphere : MonoBehaviour
             // 중력 변경으로 인한 추가
             float upDot = Vector3.Dot(upAxis, steepNormal);
 
-            // steepNormal.y -> upDot
             if(upDot >= minGroundDotProduct)
             {
                 groundContactCount = 1;
