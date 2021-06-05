@@ -209,7 +209,7 @@ public class MovingSphere : MonoBehaviour
         // 앞에 저장했던 속도를 그대로 사용해서 판단
         velocity = body.velocity;
 
-        // if(OnGround || SnapToGround() || CheckSteepContacts() || CheckClimbing())
+        // if(OnGround || CheckClimbing() || SnapToGround() || CheckSteepContacts())
         if (CheckClimbing() || OnGround || SnapToGround() || CheckSteepContacts())
         {
             stepsSinceLastGrounded = 0;
