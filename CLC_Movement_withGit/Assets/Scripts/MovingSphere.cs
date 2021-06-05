@@ -5,10 +5,13 @@ using UnityEngine;
 public class MovingSphere : MonoBehaviour
 {
     [SerializeField, Range(0f, 100f)]
-    float maxSpeed = 10f;
+    float maxSpeed = 10f, maxClimbSpeed = 2f;
 
     [SerializeField, Range(0f, 100f)]
-    float maxAcceleration = 10f, maxAirAcceleration = 1f;
+    float 
+            maxAcceleration = 10f,
+            maxAirAcceleration = 1f,
+            maxClimbAcceleration = 20f;
 
     [SerializeField, Range(0f, 10f)]
     float jumpHeight = 2f;
@@ -42,12 +45,16 @@ public class MovingSphere : MonoBehaviour
 
     [SerializeField]
     Material normalMaterial = default, jumpingMaterial = default, climbingMaterial = default;
-    
+
 
     // desired 속도도 전역으로 처리
-    Vector3 velocity, desiredVelocity;
+    // Vector3 velocity, desiredVelocity;
     // 연결된 플랫폼의 속도를 저장하는 변수 (필수는 아니지만 있으면 편함)
-    Vector3 connectionVelocity;
+    // Vector3 connectionVelocity;
+
+    // desiredVelocity 제거
+    Vector3 velocity, connectionVelocity;
+
     // 움직이는 플랫폼의 위치
     Vector3 connectionWorldPosition;
     // 움직이는 플랫폼의 로컬 위치 (회전하는 물체는 world 위치가 그대로이므로)
@@ -91,6 +98,8 @@ public class MovingSphere : MonoBehaviour
     // 점프의 횟수가 아니라, 마지막 점프 후 지난 physics step
     int stepsSinceLastJump;
 
+    // Update에서 쓰던 변수를 전역으로 돌림
+    Vector2 playerInput;
     // 환경에 따라 지정되는 '위' 방향
     Vector3 upAxis;
     // upAxis의 변경에 따라, right, forward의 방향도 달라진다
@@ -99,6 +108,8 @@ public class MovingSphere : MonoBehaviour
     Rigidbody body;
     // 플레이어와 연결되어 있는 일부 움직이는 플랫폼을 트래킹하기 위한 변수
     Rigidbody connectedBody, previouslyConnectedBody;
+
+    
 
     MeshRenderer meshRenderer;
 
@@ -125,7 +136,7 @@ public class MovingSphere : MonoBehaviour
     {
 
         // Get Player Input
-        Vector2 playerInput;
+        // Vector2 playerInput;
         playerInput.x = Input.GetAxis("Horizontal");
         playerInput.y = Input.GetAxis("Vertical");
         
@@ -144,7 +155,7 @@ public class MovingSphere : MonoBehaviour
         }
 
         // 코드 통일에 따라 이동
-        desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
+        // desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
 
         // 점프에 대한 입력을 받았는가?
         // |=를 쓰면 비 입력 상태가 점프 하려는 상태를 덮어쓰는 일이 없어진다
@@ -176,8 +187,10 @@ public class MovingSphere : MonoBehaviour
             Jump(gravity);
         }
 
-        // 
-        velocity += gravity * Time.deltaTime;
+        if(!Climbing)
+        {
+            velocity += gravity * Time.deltaTime;
+        }
 
         // rigidbody가 추가되면서 필요 없어진 요소들은 전부 제거
         body.velocity = velocity;
@@ -196,7 +209,8 @@ public class MovingSphere : MonoBehaviour
         // 앞에 저장했던 속도를 그대로 사용해서 판단
         velocity = body.velocity;
 
-        if(OnGround || SnapToGround() || CheckSteepContacts())
+        // if(OnGround || SnapToGround() || CheckSteepContacts() || CheckClimbing())
+        if (CheckClimbing() || OnGround || SnapToGround() || CheckSteepContacts())
         {
             stepsSinceLastGrounded = 0;
 
@@ -236,9 +250,12 @@ public class MovingSphere : MonoBehaviour
     // (Update State 에서 호출) 별도로 연결된 물체에 대한 처리
     void UpdateConnectionState()
     {
-        Vector3 connectionMovement = connectedBody.transform.TransformPoint(connectionLocalPosition) - connectionWorldPosition;
-        // 속도 = 거리 / 시간이라는 간단한 공식
-        connectionVelocity = connectionMovement / Time.deltaTime;
+        if(connectedBody == previouslyConnectedBody)
+        {
+            Vector3 connectionMovement = connectedBody.transform.TransformPoint(connectionLocalPosition) - connectionWorldPosition;
+            // 속도 = 거리 / 시간이라는 간단한 공식
+            connectionVelocity = connectionMovement / Time.deltaTime;
+        }
 
         // 연결된 물체에 대한 위치를 넘김
         // World는 플레이어의 위치를 저장?
@@ -400,22 +417,47 @@ public class MovingSphere : MonoBehaviour
     // contact Plane에 따라 점프 속도를 조정해주는 메소드
     void AdjustVelocity()
     {
-        // 아예 일괄로 적용을 해버리네...
-        Vector3 relativeVelocity = velocity - connectionVelocity;
-
+        /*
         Vector3 xAxis = ProjectDirectionOnPlane(rightAxis, contactNormal);
         Vector3 zAxis = ProjectDirectionOnPlane(forwardAxis, contactNormal);
+        */
+
+        float acceleration, speed;
+
+        Vector3 xAxis, zAxis;
+
+        if(Climbing)
+        {
+            acceleration = maxClimbAcceleration;
+            speed = maxClimbSpeed;
+            xAxis = Vector3.Cross(contactNormal, upAxis);
+            zAxis = upAxis;
+        }
+        else
+        {
+            acceleration = OnGround ? maxAcceleration : maxAirAcceleration;
+            speed = maxSpeed;
+            xAxis = rightAxis;
+            zAxis = forwardAxis;
+        }
+
+        xAxis = ProjectDirectionOnPlane(xAxis, contactNormal);
+        zAxis = ProjectDirectionOnPlane(zAxis, contactNormal);
+
+        // 아예 일괄로 적용을 해버리네...
+        Vector3 relativeVelocity = velocity - connectionVelocity;
 
         // velocity -> relative velocity
         float currentX = Vector3.Dot(relativeVelocity, xAxis);
         float currentZ = Vector3.Dot(relativeVelocity, zAxis);
         // 이래서 움직이는 플랫폼 위에서는 관성도 있다
 
-        float acceleration = OnGround ? maxAcceleration : maxAirAcceleration;
+        // float acceleration = OnGround ? maxAcceleration : maxAirAcceleration;
         float maxSpeedChange = acceleration * Time.deltaTime;
 
-        float newX = Mathf.MoveTowards(currentX, desiredVelocity.x, maxSpeedChange);
-        float newZ = Mathf.MoveTowards(currentZ, desiredVelocity.z, maxSpeedChange);
+        // desiredVelocity -> playerInput(전역)
+        float newX = Mathf.MoveTowards(currentX, playerInput.x * speed, maxSpeedChange);
+        float newZ = Mathf.MoveTowards(currentZ, playerInput.y * speed, maxSpeedChange);
 
         velocity += xAxis * (newX - currentX) + zAxis * (newZ - currentZ);
     }
@@ -501,6 +543,22 @@ public class MovingSphere : MonoBehaviour
                 return true;
             }
         }
+        return false;
+    }
+
+    // 벽을 오르는 움직임
+    bool CheckClimbing()
+    {
+        if(Climbing)
+        {
+            // 결국 모든 지면과 관련된 움직임을 groundContactCount와 conotactNormal로 관리
+            // 이 경향이 CheckSteepContacts에서도 그대로 드러났었음
+
+            groundContactCount = climbContactCount;
+            contactNormal = climbNormal;
+            return true;
+        }
+
         return false;
     }
 }
