@@ -91,7 +91,7 @@ public class MovingSphere : MonoBehaviour
     Vector3 climbNormal;
     int climbContactCount;
 
-    bool Climbing => climbContactCount > 0;
+    bool Climbing => climbContactCount > 0; // && stepsSinceLastGrounded > 2;
 
     // 마지막으로 땅에 닿은 후 지난 physics step
     int stepsSinceLastGrounded;
@@ -187,8 +187,14 @@ public class MovingSphere : MonoBehaviour
             Jump(gravity);
         }
 
-        if(!Climbing)
+        if(Climbing)
         {
+            // SnapToGround에서 normal 기반으로 힘을 가해서 다운포스하는 것과 유사
+            velocity -= contactNormal * (maxClimbAcceleration * 0.9f * Time.deltaTime);
+        }
+        else
+        {
+            // 어차피 gravity는 Custom Gravity 쪽 메소드가 구해올 것이다
             velocity += gravity * Time.deltaTime;
         }
 
@@ -209,7 +215,6 @@ public class MovingSphere : MonoBehaviour
         // 앞에 저장했던 속도를 그대로 사용해서 판단
         velocity = body.velocity;
 
-        // if(OnGround || CheckClimbing() || SnapToGround() || CheckSteepContacts())
         if (CheckClimbing() || OnGround || SnapToGround() || CheckSteepContacts())
         {
             stepsSinceLastGrounded = 0;
@@ -417,13 +422,7 @@ public class MovingSphere : MonoBehaviour
     // contact Plane에 따라 점프 속도를 조정해주는 메소드
     void AdjustVelocity()
     {
-        /*
-        Vector3 xAxis = ProjectDirectionOnPlane(rightAxis, contactNormal);
-        Vector3 zAxis = ProjectDirectionOnPlane(forwardAxis, contactNormal);
-        */
-
         float acceleration, speed;
-
         Vector3 xAxis, zAxis;
 
         if(Climbing)
