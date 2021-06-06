@@ -62,6 +62,8 @@ public class MovingSphere : MonoBehaviour
 
     // 점프의 가능 여부를 판명
     bool desiredJump;
+    // 벽 오르기 기능의 가능 여부를 판명
+    bool desiredClimbing;
 
     // 땅 위에 있는가 판명 >> 아래의 기능에 포함되므로 대체
     int groundContactCount;
@@ -134,7 +136,6 @@ public class MovingSphere : MonoBehaviour
     // 프레임마다 이동과 관련된 입력을 처리
     void Update()
     {
-
         // Get Player Input
         // Vector2 playerInput;
         playerInput.x = Input.GetAxis("Horizontal");
@@ -160,6 +161,8 @@ public class MovingSphere : MonoBehaviour
         // 점프에 대한 입력을 받았는가?
         // |=를 쓰면 비 입력 상태가 점프 하려는 상태를 덮어쓰는 일이 없어진다
         desiredJump |= Input.GetButtonDown("Jump");
+        // 지정한 키를 누를때만 Climb가 발동하도록 함 (나는 left ctrl로 했다)
+        desiredClimbing = Input.GetButton("Climb");
 
         // 확인을 위한 색상 변경
         // 원래 점프 용도로 확인하던게 있어서, 본문에서 하나 더 추가했다
@@ -187,6 +190,7 @@ public class MovingSphere : MonoBehaviour
             Jump(gravity);
         }
 
+        
         if(Climbing)
         {
             // SnapToGround에서 normal 기반으로 힘을 가해서 다운포스하는 것과 유사
@@ -197,6 +201,15 @@ public class MovingSphere : MonoBehaviour
             // 어차피 gravity는 Custom Gravity 쪽 메소드가 구해올 것이다
             velocity += gravity * Time.deltaTime;
         }
+        
+
+        /*
+        if(!Climbing)
+        {
+            // 어차피 gravity는 Custom Gravity 쪽 메소드가 구해올 것이다
+            velocity += gravity * Time.deltaTime;
+        }
+        */
 
         // rigidbody가 추가되면서 필요 없어진 요소들은 전부 제거
         body.velocity = velocity;
@@ -275,7 +288,8 @@ public class MovingSphere : MonoBehaviour
         // Evaluate Collision에서 Contact Normal이 단순 할당이 아니라 '축적'방식으로 변경.
         // 때문에 이를 초기화하는 코드가 필요
         
-        contactNormal = steepNormal = connectionVelocity = Vector3.zero;
+        // 여기 방금 고침. ConnectedVelocirt는 아래에서 고쳤는데?
+        contactNormal = steepNormal = climbNormal = Vector3.zero;
         connectionVelocity = Vector3.zero;
         previouslyConnectedBody = connectedBody;
         connectedBody = null;
@@ -401,7 +415,8 @@ public class MovingSphere : MonoBehaviour
                 }
 
                 // 오를 수 있는 벽인지도 같이 판단 (이전 if문에 의해 땅은 걸러짐)
-                if (upDot >= minClimbDotProduct && (climbMask & (1 << layer)) != 0)
+                if (desiredClimbing &&
+                    upDot >= minClimbDotProduct && (climbMask & (1 << layer)) != 0)
                 {
                     climbContactCount += 1;
                     climbNormal += normal;
