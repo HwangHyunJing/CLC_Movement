@@ -6378,7 +6378,7 @@ PrefabInstance:
     - target: {fileID: 5943530533222317841, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}
       propertyPath: maxClimbAcceleration
-      value: 10
+      value: 70
       objectReference: {fileID: 0}
     - target: {fileID: 5943530533222317842, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}
@@ -6388,7 +6388,7 @@ PrefabInstance:
     - target: {fileID: 5943530533222317851, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 212.62494
+      value: 212
       objectReference: {fileID: 0}
     - target: {fileID: 5943530533222317851, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}
@@ -6398,7 +6398,7 @@ PrefabInstance:
     - target: {fileID: 5943530533222317851, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 130.75914
+      value: 130
       objectReference: {fileID: 0}
     - target: {fileID: 5943530533222317851, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}

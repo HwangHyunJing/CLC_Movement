@@ -196,6 +196,12 @@ public class MovingSphere : MonoBehaviour
             // SnapToGround에서 normal 기반으로 힘을 가해서 다운포스하는 것과 유사
             velocity -= contactNormal * (maxClimbAcceleration * 0.9f * Time.deltaTime);
         }
+        else if(desiredClimbing && OnGround)
+        {
+            // 지면 방향을 향한 grip 힘을 증가
+            velocity +=
+                (gravity - contactNormal * (maxClimbAcceleration * 0.9f)) * Time.deltaTime;
+        }
         else
         {
             // 어차피 gravity는 Custom Gravity 쪽 메소드가 구해올 것이다
@@ -449,8 +455,11 @@ public class MovingSphere : MonoBehaviour
         }
         else
         {
+            
             acceleration = OnGround ? maxAcceleration : maxAirAcceleration;
-            speed = maxSpeed;
+            // 벽을 오르고 있는 상태는 아닌데, 벽에 붙기를 원하는 경우를 위함
+            // 벽에 오를 때와 동일한 속도를 미리 적용시켜 스무스하게 땅-> 벽 이동이 가능
+            speed = OnGround && desiredClimbing ? maxClimbSpeed : maxSpeed;
             xAxis = rightAxis;
             zAxis = forwardAxis;
         }
