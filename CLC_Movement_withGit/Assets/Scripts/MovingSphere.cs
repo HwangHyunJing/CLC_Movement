@@ -90,7 +90,7 @@ public class MovingSphere : MonoBehaviour
     Vector3 steepNormal;
 
     // 벽을 오르기 위한 감지 변수
-    Vector3 climbNormal;
+    Vector3 climbNormal, lastClimbNormal;
     int climbContactCount;
 
     bool Climbing => climbContactCount > 0; // && stepsSinceLastGrounded > 2;
@@ -195,6 +195,12 @@ public class MovingSphere : MonoBehaviour
         {
             // SnapToGround에서 normal 기반으로 힘을 가해서 다운포스하는 것과 유사
             velocity -= contactNormal * (maxClimbAcceleration * 0.9f * Time.deltaTime);
+        }
+        // 급한 경사로에서 플레이어 구체가 가만히 서 있을 수 있게 구현
+        else if(OnGround && velocity.sqrMagnitude < 0.01f)
+        {
+            velocity +=
+                contactNormal * (Vector3.Dot(gravity, contactNormal) * Time.deltaTime);
         }
         else if(desiredClimbing && OnGround)
         {
@@ -426,6 +432,7 @@ public class MovingSphere : MonoBehaviour
                 {
                     climbContactCount += 1;
                     climbNormal += normal;
+                    lastClimbNormal = normal;
                     connectedBody = collision.rigidbody;
                 }
             }
@@ -574,10 +581,21 @@ public class MovingSphere : MonoBehaviour
     {
         if(Climbing)
         {
+            // 마지막에 닿은 벽을 기준으로 normal 벡터를 형성: cravasse 탈출용
+            if(climbContactCount > 1)
+            {
+                climbNormal.Normalize();
+                float upDot = Vector3.Dot(upAxis, climbNormal);
+                if(upDot >= minGroundDotProduct)
+                {
+                    climbNormal = lastClimbNormal;
+                }
+            }
+
             // 결국 모든 지면과 관련된 움직임을 groundContactCount와 conotactNormal로 관리
             // 이 경향이 CheckSteepContacts에서도 그대로 드러났었음
 
-            groundContactCount = climbContactCount;
+            groundContactCount = 1;
             contactNormal = climbNormal;
             return true;
         }
