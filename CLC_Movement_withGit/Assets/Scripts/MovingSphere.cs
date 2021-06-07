@@ -5,13 +5,14 @@ using UnityEngine;
 public class MovingSphere : MonoBehaviour
 {
     [SerializeField, Range(0f, 100f)]
-    float maxSpeed = 10f, maxClimbSpeed = 2f;
+    float maxSpeed = 10f, maxClimbSpeed = 2f, maxSwimSpeed = 5f;
 
     [SerializeField, Range(0f, 100f)]
     float 
             maxAcceleration = 10f,
             maxAirAcceleration = 1f,
-            maxClimbAcceleration = 20f;
+            maxClimbAcceleration = 20f,
+            maxSwimAcceleration = 5f;
 
     [SerializeField, Range(0f, 10f)]
     float jumpHeight = 2f;
@@ -67,6 +68,10 @@ public class MovingSphere : MonoBehaviour
     [SerializeField, Min(0f)]
     float buoyancy = 1f;
 
+    // 수영 상태에 진입하기 위한 최소한의 잠김 정도
+    [SerializeField, Range(0.01f, 1f)]
+    float swimThreshold = .5f;
+
     // desiredVelocity 제거
     Vector3 velocity, connectionVelocity;
 
@@ -116,7 +121,9 @@ public class MovingSphere : MonoBehaviour
     int stepsSinceLastJump;
 
     // Update에서 쓰던 변수를 전역으로 돌림
-    Vector2 playerInput;
+    // Vector2 playerInput;
+    // 수영 관련해서 상하 이동을 지원하기 위해 Vector3 형으로 전환
+    Vector3 playerInput;
     // 환경에 따라 지정되는 '위' 방향
     Vector3 upAxis;
     // upAxis의 변경에 따라, right, forward의 방향도 달라진다
@@ -129,6 +136,7 @@ public class MovingSphere : MonoBehaviour
     // 구체가 물 안에 있는지 알려주는 메소드
     bool InWater => submergence > 0f;
     float submergence;
+    bool Swimming => submergence >= swimThreshold;
 
     MeshRenderer meshRenderer;
 
@@ -153,12 +161,12 @@ public class MovingSphere : MonoBehaviour
     // 프레임마다 이동과 관련된 입력을 처리
     void Update()
     {
-        // Get Player Input
-        // Vector2 playerInput;
+        // 키보드에서 입력을 받음
         playerInput.x = Input.GetAxis("Horizontal");
         playerInput.y = Input.GetAxis("Vertical");
+        playerInput.z = Swimming ? Input.GetAxis("UpDown") : 0f;
         
-        playerInput = Vector2.ClampMagnitude(playerInput, 1f);
+        playerInput = Vector3.ClampMagnitude(playerInput, 1f);
 
         // 플레이어가 카메라(playerInputSpace)에 맞게 돌아가는 것
         if (playerInputSpace)
@@ -172,9 +180,6 @@ public class MovingSphere : MonoBehaviour
             forwardAxis = ProjectDirectionOnPlane(Vector3.forward, upAxis);           
         }
 
-        // 코드 통일에 따라 이동
-        // desiredVelocity = new Vector3(playerInput.x, 0f, playerInput.y) * maxSpeed;
-
         // 점프에 대한 입력을 받았는가?
         // |=를 쓰면 비 입력 상태가 점프 하려는 상태를 덮어쓰는 일이 없어진다
         desiredJump |= Input.GetButtonDown("Jump");
@@ -183,9 +188,8 @@ public class MovingSphere : MonoBehaviour
 
         // 확인을 위한 색상 변경
         // 원래 점프 용도로 확인하던게 있어서, 본문에서 하나 더 추가했다
-        meshRenderer.material = OnGround ? normalMaterial : (Climbing ? climbingMaterial : (InWater ? swimmingMaterial : jumpingMaterial));
-        // 잠긴 정도에 따라 색이 서서히 변함
-        // meshRenderer.material.color = Color.blue * submergence;
+        meshRenderer.material = OnGround ? normalMaterial : (Climbing ? climbingMaterial : (Swimming ? swimmingMaterial : jumpingMaterial));
+
     }
 
     // 값에 대한 계산들을 처리, 판단
@@ -259,7 +263,7 @@ public class MovingSphere : MonoBehaviour
         // 앞에 저장했던 속도를 그대로 사용해서 판단
         velocity = body.velocity;
 
-        if (CheckClimbing() || OnGround || SnapToGround() || CheckSteepContacts())
+        if (CheckClimbing() || CheckSwimming() || OnGround || SnapToGround() || CheckSteepContacts())
         {
             stepsSinceLastGrounded = 0;
 
@@ -407,41 +411,7 @@ public class MovingSphere : MonoBehaviour
         EvaluateCollision(collision);
     }
 
-    // 물과의 충돌을 감지
-    private void OnTriggerEnter(Collider other)
-    {
-        // 해당 값이 water mask라면
-        if((waterMask & (1 << other.gameObject.layer)) != 0)
-        {
-            // InWater = true;
-            EvaluateSubmergence();
-        }
-    }
 
-    private void OnTriggerStay(Collider other)
-    {
-        // 해당 값이 water mask라면
-        if ((waterMask & (1 << other.gameObject.layer)) != 0)
-        {
-            EvaluateSubmergence();
-        }
-    }
-
-    // 물에 잠겼는지 여부를 Ray로 판단하는 메소드
-    void EvaluateSubmergence()
-    {
-        if (Physics.Raycast(body.position + upAxis * submergenceOffset, -upAxis,
-            out RaycastHit hit, submergenceRange+1f, waterMask, QueryTriggerInteraction.Collide
-            ))
-        {
-            submergence = 1f - hit.distance / submergenceRange;
-        }
-        else
-        {
-            // water trigger와 충돌하되, 이미 물 내부에 들어와서 ray가 인지하지 못하는 경우
-            submergence = 1f;
-        }
-    }
 
     // 충돌 시 법선을 판단
     void EvaluateCollision (Collision collision)
@@ -496,6 +466,55 @@ public class MovingSphere : MonoBehaviour
         }
     }
 
+    // 물과의 충돌을 감지
+    private void OnTriggerEnter(Collider other)
+    {
+        // 해당 값이 water mask라면
+        if ((waterMask & (1 << other.gameObject.layer)) != 0)
+        {
+            // InWater = true;
+            EvaluateSubmergence();
+        }
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        // 해당 값이 water mask라면
+        if ((waterMask & (1 << other.gameObject.layer)) != 0)
+        {
+            EvaluateSubmergence();
+        }
+    }
+
+    // 물에 잠겼는지 여부를 Ray로 판단하는 메소드
+    void EvaluateSubmergence()
+    {
+        if (Physics.Raycast(body.position + upAxis * submergenceOffset, -upAxis,
+            out RaycastHit hit, submergenceRange + 1f, waterMask, QueryTriggerInteraction.Collide
+            ))
+        {
+            submergence = 1f - hit.distance / submergenceRange;
+        }
+        else
+        {
+            // water trigger와 충돌하되, 이미 물 내부에 들어와서 ray가 인지하지 못하는 경우
+            submergence = 1f;
+        }
+    }
+
+    // 지금 수영 상태인지 확인하고, 맞을 경우 이에 따른 값을 할당
+    bool CheckSwimming()
+    {
+        // 결국은 groundContactCount, contactNormal을 사용하네...
+        if(Swimming)
+        {
+            groundContactCount = 0;
+            contactNormal = upAxis;
+            return true;
+        }
+        return false;
+    }
+
     // normal의 방향이 임의로 바뀔 수 있어서, 아예 이를 인자로 넘김
     // 기존에 contactNormal을 인자로 넘기기도 하지만, 평지 상에서 right, forward를 구하기 위해 upAxis를 넘기기도 한다
     Vector3 ProjectDirectionOnPlane (Vector3 direction, Vector3 normal)
@@ -517,9 +536,19 @@ public class MovingSphere : MonoBehaviour
             xAxis = Vector3.Cross(contactNormal, upAxis);
             zAxis = upAxis;
         }
+        else if (InWater)
+        {
+            // 수영 속도 및 가속도에 대한 차감 계수
+            float swimFactor = Mathf.Min(1f, submergence / swimThreshold);
+            acceleration = 
+                Mathf.LerpUnclamped(OnGround? maxAcceleration : maxAirAcceleration, maxSwimAcceleration, swimFactor);
+            speed =
+                Mathf.LerpUnclamped(maxSpeed, maxSwimSpeed, swimFactor);
+            xAxis = rightAxis;
+            zAxis = forwardAxis;
+        }
         else
         {
-            
             acceleration = OnGround ? maxAcceleration : maxAirAcceleration;
             // 벽을 오르고 있는 상태는 아닌데, 벽에 붙기를 원하는 경우를 위함
             // 벽에 오를 때와 동일한 속도를 미리 적용시켜 스무스하게 땅-> 벽 이동이 가능
@@ -539,7 +568,6 @@ public class MovingSphere : MonoBehaviour
         float currentZ = Vector3.Dot(relativeVelocity, zAxis);
         // 이래서 움직이는 플랫폼 위에서는 관성도 있다
 
-        // float acceleration = OnGround ? maxAcceleration : maxAirAcceleration;
         float maxSpeedChange = acceleration * Time.deltaTime;
 
         // desiredVelocity -> playerInput(전역)
@@ -547,6 +575,15 @@ public class MovingSphere : MonoBehaviour
         float newZ = Mathf.MoveTowards(currentZ, playerInput.y * speed, maxSpeedChange);
 
         velocity += xAxis * (newX - currentX) + zAxis * (newZ - currentZ);
+
+        // 다 끝나고 할 줄은 몰랐는데
+        if(Swimming)
+        {
+            float currentY = Vector3.Dot(relativeVelocity, upAxis);
+            float newY =
+                Mathf.MoveTowards(currentY, playerInput.z * speed, maxSpeedChange);
+            velocity += upAxis * (newY - currentY);
+        }
     }
 
     // 필요한 경우 땅에 붙도록 하는 메소드 (기능이 동작한 여부를 리턴)
@@ -558,7 +595,7 @@ public class MovingSphere : MonoBehaviour
 
         // 지면에서 떨어진 후 충분한(=1) physics step이 경과했는가?
         // 점프 스텝은, 점프 직후에 바로 Snap되는 걸 막기 위함
-        if (stepsSinceLastGrounded > 1 || stepsSinceLastJump <= 2 || InWater)
+        if (stepsSinceLastGrounded > 1 || stepsSinceLastJump <= 2)
         {
             // 땅에 붙어있지 않다
             return false;
@@ -573,7 +610,7 @@ public class MovingSphere : MonoBehaviour
         }
 
         // 하단으로 쏜 Ray와 충돌하는 것이 없는가?
-        // 여기서 Water 감지도 같이 함
+
         if (!Physics.Raycast(body.position, -upAxis, out RaycastHit hit, probeDistance, probeMask, QueryTriggerInteraction.Ignore))
         {
             // 땅이 없음

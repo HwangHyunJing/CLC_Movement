@@ -6592,12 +6592,17 @@ PrefabInstance:
     - target: {fileID: 5943530533222317841, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}
       propertyPath: waterDrag
-      value: 2
+      value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 5943530533222317841, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}
       propertyPath: buoyancy
-      value: 2
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5943530533222317841, guid: 34e9da07f1a83b1448e8c811f3d593d8,
+        type: 3}
+      propertyPath: swimThreshold
+      value: 0.3
       objectReference: {fileID: 0}
     - target: {fileID: 5943530533222317842, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}
