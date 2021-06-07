@@ -416,6 +416,12 @@ public class MovingSphere : MonoBehaviour
     // 충돌 시 법선을 판단
     void EvaluateCollision (Collision collision)
     {
+        // 물 속의 경우 다른 여타 collider와의 충돌을 무시
+        if(Swimming)
+        {
+            return;
+        }
+
         // 지금 collide한 대상이 지면인가 계단인가
         int layer = collision.gameObject.layer;
         float minDot = GetMinDot(layer);
@@ -473,7 +479,7 @@ public class MovingSphere : MonoBehaviour
         if ((waterMask & (1 << other.gameObject.layer)) != 0)
         {
             // InWater = true;
-            EvaluateSubmergence();
+            EvaluateSubmergence(other);
         }
     }
 
@@ -482,12 +488,12 @@ public class MovingSphere : MonoBehaviour
         // 해당 값이 water mask라면
         if ((waterMask & (1 << other.gameObject.layer)) != 0)
         {
-            EvaluateSubmergence();
+            EvaluateSubmergence(other);
         }
     }
 
     // 물에 잠겼는지 여부를 Ray로 판단하는 메소드
-    void EvaluateSubmergence()
+    void EvaluateSubmergence(Collider collider)
     {
         if (Physics.Raycast(body.position + upAxis * submergenceOffset, -upAxis,
             out RaycastHit hit, submergenceRange + 1f, waterMask, QueryTriggerInteraction.Collide
@@ -499,6 +505,12 @@ public class MovingSphere : MonoBehaviour
         {
             // water trigger와 충돌하되, 이미 물 내부에 들어와서 ray가 인지하지 못하는 경우
             submergence = 1f;
+        }
+
+        if(Swimming)
+        {
+            // 움직이는 물의 동체를 받아와서 사용
+            connectedBody = collider.attachedRigidbody;
         }
     }
 

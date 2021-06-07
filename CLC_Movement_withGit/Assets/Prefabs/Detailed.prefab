@@ -123,3 +123,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b020b92ccd8b8d04c9624d561df647e6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  floatToSleep: 1
+  submergenceOffset: 0.125
+  submergenceRange: 0.25
+  buoyancy: 1.2
+  buoyancyOffset: {x: 0, y: 0.5, z: 0}
+  waterDrag: 0.5
+  waterMask:
+    serializedVersion: 2
+    m_Bits: 16
