@@ -122,7 +122,7 @@ public class OrbitCamera : MonoBehaviour
 
         // 인자를 잘 보면, focus Point에서 box형태로 cast하는 중
         // halfExtends: 상자 크기를 정의. 해당 값은 그 크기의 절반
-        if (Physics.BoxCast(castFrom, CameraHalfExtends, castDirection, out RaycastHit hit, lookRotation, castDistance, obstructionMask))
+        if (Physics.BoxCast(castFrom, CameraHalfExtends, castDirection, out RaycastHit hit, lookRotation, castDistance, obstructionMask, QueryTriggerInteraction.Ignore))
         {
             rectPosition = castFrom + castDirection * hit.distance;
             // near Clip Plane 더한건 최소한의 카메라 시야 확보를 위함
@@ -230,14 +230,6 @@ public class OrbitCamera : MonoBehaviour
 
         // 
         Vector3 alignedDelta = Quaternion.Inverse(gravityAlignment) * (focusPoint - previousFocusPoint);
-
-        // 차이 = 움직여야 하는 정도
-        /*
-        Vector2 movement = new Vector2(
-            focusPoint.x - previousFocusPoint.x,
-            focusPoint.z - previousFocusPoint.z
-        );
-        */
 
         // 
         Vector2 movement = new Vector2(alignedDelta.x, alignedDelta.z);

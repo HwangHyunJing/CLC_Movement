@@ -135,7 +135,7 @@ GameObject:
   - component: {fileID: 144407957}
   - component: {fileID: 144407956}
   m_Layer: 0
-  m_Name: Under Water
+  m_Name: Water Surface
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -444,8 +444,8 @@ GameObject:
   - component: {fileID: 164141984}
   - component: {fileID: 164141983}
   - component: {fileID: 164141982}
-  m_Layer: 0
-  m_Name: Water Surface
+  m_Layer: 4
+  m_Name: Water Inside
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4061,7 +4061,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: pb_Mesh-21346
+  m_Name: pb_Mesh14040
   serializedVersion: 10
   m_SubMeshes:
   - serializedVersion: 2
@@ -6136,7 +6136,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: pb_Mesh-21028
+  m_Name: pb_Mesh14052
   serializedVersion: 10
   m_SubMeshes:
   - serializedVersion: 2
@@ -6579,6 +6579,26 @@ PrefabInstance:
       propertyPath: playerInputSpace
       value: 
       objectReference: {fileID: 894930159}
+    - target: {fileID: 5943530533222317841, guid: 34e9da07f1a83b1448e8c811f3d593d8,
+        type: 3}
+      propertyPath: swimmingMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: cbb7e535457c5c34fbafa3a08231d6a1, type: 2}
+    - target: {fileID: 5943530533222317841, guid: 34e9da07f1a83b1448e8c811f3d593d8,
+        type: 3}
+      propertyPath: waterMask.m_Bits
+      value: 16
+      objectReference: {fileID: 0}
+    - target: {fileID: 5943530533222317841, guid: 34e9da07f1a83b1448e8c811f3d593d8,
+        type: 3}
+      propertyPath: waterDrag
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 5943530533222317841, guid: 34e9da07f1a83b1448e8c811f3d593d8,
+        type: 3}
+      propertyPath: buoyancy
+      value: 2
+      objectReference: {fileID: 0}
     - target: {fileID: 5943530533222317842, guid: 34e9da07f1a83b1448e8c811f3d593d8,
         type: 3}
       propertyPath: m_Name

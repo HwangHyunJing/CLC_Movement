@@ -38,19 +38,34 @@ public class MovingSphere : MonoBehaviour
     float maxClimbAngle = 140f;
 
     [SerializeField]
-    LayerMask probeMask = -1, stairsMask = -1, climbMask = -1;
+    LayerMask probeMask = -1, stairsMask = -1, climbMask = -1, waterMask = 0;
+    // 전부 1111...11인 상태에서 몇 가지만 제외하는 여가 mask와는 다르게
+    // water mask는 오직 하나의 layer만 1인 경우라서 디폴트 값을 0으로 하지 않았을까...?
 
     [SerializeField]
     Transform playerInputSpace = default;
 
     [SerializeField]
-    Material normalMaterial = default, jumpingMaterial = default, climbingMaterial = default;
+    Material
+            normalMaterial = default,
+            jumpingMaterial = default,
+            climbingMaterial = default,
+            swimmingMaterial = default;
 
+    // 잠긴 정도를 감지하기 시작하는 위치가 플레이어 중심부에서 얼마나 떨어졌는가?
+    [SerializeField]
+    float submergenceOffset = .5f;
+    // 잠긴 정도를 판단하기 위한 Ray의 범위는 어떻게 되는가?
+    [SerializeField, Min(.1f)]
+    float submergenceRange = 1f;
 
-    // desired 속도도 전역으로 처리
-    // Vector3 velocity, desiredVelocity;
-    // 연결된 플랫폼의 속도를 저장하는 변수 (필수는 아니지만 있으면 편함)
-    // Vector3 connectionVelocity;
+    // 물에 대한 장력, 저항력
+    [SerializeField, Range(0f, 10f)]
+    float waterDrag = 1f;
+
+    // 물에 대한 부력
+    [SerializeField, Min(0f)]
+    float buoyancy = 1f;
 
     // desiredVelocity 제거
     Vector3 velocity, connectionVelocity;
@@ -111,7 +126,9 @@ public class MovingSphere : MonoBehaviour
     // 플레이어와 연결되어 있는 일부 움직이는 플랫폼을 트래킹하기 위한 변수
     Rigidbody connectedBody, previouslyConnectedBody;
 
-    
+    // 구체가 물 안에 있는지 알려주는 메소드
+    bool InWater => submergence > 0f;
+    float submergence;
 
     MeshRenderer meshRenderer;
 
@@ -166,7 +183,9 @@ public class MovingSphere : MonoBehaviour
 
         // 확인을 위한 색상 변경
         // 원래 점프 용도로 확인하던게 있어서, 본문에서 하나 더 추가했다
-        meshRenderer.material = OnGround ? normalMaterial : (Climbing ? climbingMaterial : jumpingMaterial);
+        meshRenderer.material = OnGround ? normalMaterial : (Climbing ? climbingMaterial : (InWater ? swimmingMaterial : jumpingMaterial));
+        // 잠긴 정도에 따라 색이 서서히 변함
+        // meshRenderer.material.color = Color.blue * submergence;
     }
 
     // 값에 대한 계산들을 처리, 판단
@@ -174,13 +193,18 @@ public class MovingSphere : MonoBehaviour
     {
         // 값의 계산이니 Fixed Update에, 중력이기 때문에 가장 우선
         // 여기도 Physics.gravity 대신에 CustomGravity의 정적 메소드를 사용
-        // upAxis = -Physics.gravity.normalized;
         Vector3 gravity = CustomGravity.GetGravity(body.position, out upAxis);
         // 어차피 out 파라미터 덕분에 upAxis값을 사용할 수 있다
 
         UpdateState();
-        AdjustVelocity();
 
+        if (InWater)
+        {
+            // 물의 장력만큼 속도에 영향을 준다
+            velocity *= 1f - waterDrag * submergence * Time.deltaTime;
+        }
+
+        AdjustVelocity();
 
         // 점프 여부를 판단, 실행
         if (desiredJump)
@@ -189,12 +213,16 @@ public class MovingSphere : MonoBehaviour
             // Jump();
             Jump(gravity);
         }
-
         
         if(Climbing)
         {
             // SnapToGround에서 normal 기반으로 힘을 가해서 다운포스하는 것과 유사
             velocity -= contactNormal * (maxClimbAcceleration * 0.9f * Time.deltaTime);
+        }
+        else if (InWater)
+        {
+            // 여기서 한번 또 연산하는 건가?
+            velocity += gravity * ((1f - buoyancy * submergence) * Time.deltaTime);
         }
         // 급한 경사로에서 플레이어 구체가 가만히 서 있을 수 있게 구현
         else if(OnGround && velocity.sqrMagnitude < 0.01f)
@@ -213,15 +241,6 @@ public class MovingSphere : MonoBehaviour
             // 어차피 gravity는 Custom Gravity 쪽 메소드가 구해올 것이다
             velocity += gravity * Time.deltaTime;
         }
-        
-
-        /*
-        if(!Climbing)
-        {
-            // 어차피 gravity는 Custom Gravity 쪽 메소드가 구해올 것이다
-            velocity += gravity * Time.deltaTime;
-        }
-        */
 
         // rigidbody가 추가되면서 필요 없어진 요소들은 전부 제거
         body.velocity = velocity;
@@ -305,6 +324,8 @@ public class MovingSphere : MonoBehaviour
         connectionVelocity = Vector3.zero;
         previouslyConnectedBody = connectedBody;
         connectedBody = null;
+        // InWater는 읽기 전용이라서 수정이 가능한 submergence로 대체
+        submergence = 0f;
     }
 
     void Jump(Vector3 gravity)
@@ -384,6 +405,42 @@ public class MovingSphere : MonoBehaviour
     private void OnCollisionStay(Collision collision)
     {
         EvaluateCollision(collision);
+    }
+
+    // 물과의 충돌을 감지
+    private void OnTriggerEnter(Collider other)
+    {
+        // 해당 값이 water mask라면
+        if((waterMask & (1 << other.gameObject.layer)) != 0)
+        {
+            // InWater = true;
+            EvaluateSubmergence();
+        }
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        // 해당 값이 water mask라면
+        if ((waterMask & (1 << other.gameObject.layer)) != 0)
+        {
+            EvaluateSubmergence();
+        }
+    }
+
+    // 물에 잠겼는지 여부를 Ray로 판단하는 메소드
+    void EvaluateSubmergence()
+    {
+        if (Physics.Raycast(body.position + upAxis * submergenceOffset, -upAxis,
+            out RaycastHit hit, submergenceRange+1f, waterMask, QueryTriggerInteraction.Collide
+            ))
+        {
+            submergence = 1f - hit.distance / submergenceRange;
+        }
+        else
+        {
+            // water trigger와 충돌하되, 이미 물 내부에 들어와서 ray가 인지하지 못하는 경우
+            submergence = 1f;
+        }
     }
 
     // 충돌 시 법선을 판단
@@ -501,7 +558,7 @@ public class MovingSphere : MonoBehaviour
 
         // 지면에서 떨어진 후 충분한(=1) physics step이 경과했는가?
         // 점프 스텝은, 점프 직후에 바로 Snap되는 걸 막기 위함
-        if (stepsSinceLastGrounded > 1 || stepsSinceLastJump <= 2)
+        if (stepsSinceLastGrounded > 1 || stepsSinceLastJump <= 2 || InWater)
         {
             // 땅에 붙어있지 않다
             return false;
@@ -516,7 +573,8 @@ public class MovingSphere : MonoBehaviour
         }
 
         // 하단으로 쏜 Ray와 충돌하는 것이 없는가?
-        if (!Physics.Raycast(body.position, -upAxis, out RaycastHit hit, probeDistance, probeMask))
+        // 여기서 Water 감지도 같이 함
+        if (!Physics.Raycast(body.position, -upAxis, out RaycastHit hit, probeDistance, probeMask, QueryTriggerInteraction.Ignore))
         {
             // 땅이 없음
             return false;
@@ -602,4 +660,6 @@ public class MovingSphere : MonoBehaviour
 
         return false;
     }
+
+
 }
