@@ -710,5 +710,10 @@ public class MovingSphere : MonoBehaviour
         return false;
     }
 
+    // 상황에 따라 땅에 붙지 않고 다른 힘을 받을 수 있도록 하는 메소드
+    public void PreventSnapToGround()
+    {
+        stepsSinceLastJump = -1;
+    }
 
 }
