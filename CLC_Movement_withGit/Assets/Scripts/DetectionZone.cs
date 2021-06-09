@@ -12,12 +12,62 @@ public class DetectionZone : MonoBehaviour
     // 구역 안에 있는 요소들을 감지, 관리하기 위한 리스트
     List<Collider> colliders = new List<Collider>();
 
+    private void Awake()
+    {
+        enabled = false;
+    }
+
+    private void FixedUpdate()
+    {
+        // 배열 내에서 넣어둔 물체들이 여전히 유효한지 트래킹
+        // (Destroy와 같은 소멸 상황을 On Trigger Exit이 포착하지 못하기 때문)
+        for(int i=0; i < colliders.Count; i++)
+        {
+            Collider collider = colliders[i];
+
+            // 콜라이더가 사라졌거나 or 콜라이더를 지닌 게임 오브젝트가 사라졌거나
+            if(!collider || !collider.gameObject.activeInHierarchy)
+            {
+                colliders.RemoveAt(i--);
+
+                // on Trigger Exit이 감지하지 못해서 처리하지 않은 일을 대신 해준다
+                if (colliders.Count == 0)
+                {
+                    onLastExit.Invoke();
+                    enabled = false;
+                }
+                    
+            }
+        }
+    }
+
+    // 구역 자체가 파괴되었을 경우
+    private void OnDisable()
+    {
+
+        // 유니티의 hot reload는 오브젝트의 OnDisable을 수반하기 때문에, 이를 막기 위한 조치
+#if UNITY_EDITOR
+        if(enabled && gameObject.activeInHierarchy)
+        {
+            return;
+        }
+#endif
+
+        if(colliders.Count > 0)
+        {
+            // 배열 정리하고, onLastExit 이벤트 호출한 뒤에 파괴
+            colliders.Clear();
+            onLastExit.Invoke();
+        }
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         // 아무것도 없는 경우 on First Enter를 발동
         if(colliders.Count == 0)
         {
             onFirstEnter.Invoke();
+            enabled = true;
         }
         // 구역 안에 있는 것들의 목록에 추가
         colliders.Add(other);
@@ -35,6 +85,7 @@ public class DetectionZone : MonoBehaviour
         {
             // 해당 구역에서 나갔을 때의 Event를 발생
             onLastExit.Invoke();
+            enabled = false;
         }
     }
 }

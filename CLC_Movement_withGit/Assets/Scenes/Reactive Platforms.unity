@@ -1023,7 +1023,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!64 &436588536
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -2453,7 +2453,7 @@ PrefabInstance:
     - target: {fileID: 150999971398354621, guid: 318248f176453b841922a28b6c5d894f,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 153
+      value: 163
       objectReference: {fileID: 0}
     - target: {fileID: 150999971398354621, guid: 318248f176453b841922a28b6c5d894f,
         type: 3}
@@ -2463,7 +2463,7 @@ PrefabInstance:
     - target: {fileID: 150999971398354621, guid: 318248f176453b841922a28b6c5d894f,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 107
+      value: 99
       objectReference: {fileID: 0}
     - target: {fileID: 150999971398354621, guid: 318248f176453b841922a28b6c5d894f,
         type: 3}
@@ -3506,12 +3506,34 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 436588535}
+        m_MethodName: SetActive
+        m_Mode: 6
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 1
+        m_CallState: 2
   onLastExit:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 1249467220}
         m_MethodName: Select
         m_Mode: 3
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 436588535}
+        m_MethodName: SetActive
+        m_Mode: 6
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -4816,7 +4838,7 @@ PrefabInstance:
     - target: {fileID: 150999971398354621, guid: 318248f176453b841922a28b6c5d894f,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 154
+      value: 164
       objectReference: {fileID: 0}
     - target: {fileID: 150999971398354621, guid: 318248f176453b841922a28b6c5d894f,
         type: 3}
@@ -4826,7 +4848,7 @@ PrefabInstance:
     - target: {fileID: 150999971398354621, guid: 318248f176453b841922a28b6c5d894f,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 107
+      value: 99
       objectReference: {fileID: 0}
     - target: {fileID: 150999971398354621, guid: 318248f176453b841922a28b6c5d894f,
         type: 3}
