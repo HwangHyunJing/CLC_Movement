@@ -20,7 +20,13 @@ public class AutomaticSlider : MonoBehaviour
     // 플랫폼이 끝에 다다랐을 때 역 방향으로 움직일지 여부
     [SerializeField]
     bool autoReverse = false;
-    bool reversed;
+    // bool reversed;
+    public bool Reversed { get; set; }
+    public bool AutoReverse
+    {
+        get => autoReverse;
+        set => autoReverse = value;
+    }
 
     // 플랫폼의 시작과 끝 움직임에서 곡선을 줄지 여부
     [SerializeField]
@@ -28,9 +34,8 @@ public class AutomaticSlider : MonoBehaviour
 
     // 그냥 3차함수 그래프 식입니다
     float SmoothedValue => 3f * value * value - 2f * value * value * value;
+
     
-
-
 
     // 보간을 위한 값. 크기는 0~1로 제한된다
     float value;
@@ -40,7 +45,7 @@ public class AutomaticSlider : MonoBehaviour
         float delta = Time.deltaTime / duration;
 
         // 역방향 이동
-        if(reversed)
+        if(Reversed)
         {
             value -= delta;
             if(value <= 0f)
@@ -49,7 +54,7 @@ public class AutomaticSlider : MonoBehaviour
                 {
                     // 단순히 값에 Clamp되는 대신에 역 방향 위치를 지원해서 부드러운 움직임을 만듦
                     value = Mathf.Min(1f, -value);
-                    reversed = false;
+                    Reversed = false;
                 }
                 else
                 {
@@ -69,7 +74,7 @@ public class AutomaticSlider : MonoBehaviour
                 if(autoReverse)
                 {
                     value = Mathf.Max(0f, 2f -value);
-                    reversed = true;
+                    Reversed = true;
                 }
                 else
                 {
